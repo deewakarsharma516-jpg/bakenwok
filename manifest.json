@@ -1,0 +1,14 @@
+{
+  "name": "Bake 'N' Wok — Pure Veg Cloud Kitchen",
+  "short_name": "Bake 'N' Wok",
+  "description": "100% pure-veg cloud kitchen in Faridabad. Order momos, burgers, pizza, chowmein & more.",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#ffffff",
+  "theme_color": "#7a1f3d",
+  "icons": [
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}
