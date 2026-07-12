@@ -259,6 +259,7 @@
     background:var(--flame); font-weight:600; font-size:13px;
   }
   .qty-box span{min-width:18px; text-align:center; font-weight:600;}
+  .cart-remove{background:none!important; border:none!important; color:var(--nonveg)!important; font-size:15px; padding:0 2px!important; cursor:pointer;}
 
   /* ---------- FLOATING CART BAR ---------- */
   .cart-bar{
@@ -869,7 +870,7 @@
 </div>
 
 <!-- CART SHEET -->
-<div class="overlay" id="cartOverlay">
+<div class="overlay" id="cartOverlay" onclick="if(event.target===this) closeSheet('cartOverlay')">
   <div class="sheet">
     <h2>Your Cart <button class="close" onclick="closeSheet('cartOverlay')">×</button></h2>
     <div id="cartLines"></div>
@@ -1604,11 +1605,29 @@ function openCart(){
   document.getElementById('checkoutBtn').style.display = items.length? 'block':'none';
   lines.innerHTML = items.map(i=>`
     <div class="cart-line">
-      <div class="nm">${i.name} × ${i.qty}</div>
+      <div class="nm">${i.name}</div>
+      <div class="qty-box">
+        <button onclick="cartLineQty('${i.key}',-1)">−</button>
+        <span>${i.qty}</span>
+        <button onclick="cartLineQty('${i.key}',1)">+</button>
+        <button class="cart-remove" title="Remove" onclick="cartLineRemove('${i.key}')">🗑️</button>
+      </div>
       <div class="pr">₹${i.price*i.qty}</div>
     </div>`).join('') + renderCartCombo(items);
   renderBill('billBox');
   document.getElementById('cartOverlay').classList.add('show');
+}
+// +/- ek item ki qty change karta hai, cart panel ko turant refresh karta hai
+function cartLineQty(key, delta){
+  changeQty(key, delta);
+  openCart();
+}
+// item ko cart se poora hata deta hai, chahe qty kitni bhi ho
+function cartLineRemove(key){
+  delete cart[key];
+  renderMenu();
+  updateCartBar();
+  openCart();
 }
 
 function renderCartCombo(items){
