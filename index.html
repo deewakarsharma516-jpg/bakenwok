@@ -535,6 +535,14 @@
     font-weight:600; cursor:pointer;
   }
   .admin-tabs button.active{background:var(--maroon); color:var(--cream);}
+  .token-queue-grid{display:flex; flex-wrap:wrap; gap:10px; margin-top:10px;}
+  .token-queue-card{
+    background:var(--cream-2); border:1px solid #ecd9ad; border-radius:14px;
+    padding:12px 16px; min-width:110px; text-align:center; box-shadow:var(--shadow);
+  }
+  .token-queue-card .tq-num{font-family:'JetBrains Mono',monospace; font-size:24px; font-weight:800; color:var(--maroon);}
+  .token-queue-card .tq-name{font-size:12px; color:var(--ink); margin:4px 0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:110px;}
+  .token-queue-card .tq-status{font-size:10px; color:#fff; padding:2px 8px; border-radius:10px; display:inline-block;}
   .admin-card{
     background:#fffaf0; border:1px solid #ecd9ad; border-radius:12px; padding:14px; margin-bottom:10px;
   }
@@ -712,6 +720,7 @@
   <div id="deliveryStatusBanner"></div>
 
   <button class="rider-cta" onclick="openPage('partner')">🛵 Book a Delivery Rider — compare rates (Porter · Borzo)</button>
+  <button class="rider-cta" style="background:var(--teal);margin-top:8px;" onclick="openPublicTokenQueue()">🎫 Live Token Status</button>
 
   <div id="repeatBanner"></div>
   <div id="reviewsStrip"></div>
@@ -869,6 +878,14 @@
   </div>
 </div>
 
+<!-- PUBLIC LIVE TOKEN STATUS (customers, no login needed) -->
+<div class="overlay" id="publicTokenOverlay" onclick="if(event.target===this) closePublicTokenQueue()">
+  <div class="sheet">
+    <h2>🎫 Live Token Status <button class="close" onclick="closePublicTokenQueue()">×</button></h2>
+    <div id="publicTokenList"></div>
+  </div>
+</div>
+
 <!-- CART SHEET -->
 <div class="overlay" id="cartOverlay" onclick="if(event.target===this) closeSheet('cartOverlay')">
   <div class="sheet">
@@ -937,6 +954,7 @@
     <div class="admin-tabs">
       <button class="active" onclick="showAdminTab('menuTab')">Manage Menu</button>
       <button onclick="showAdminTab('ordersTab')">Orders</button>
+      <button onclick="showAdminTab('tokenTab')">🎫 Token Queue</button>
       <button onclick="showAdminTab('settingsTab')">Settings</button>
     </div>
 
@@ -970,6 +988,10 @@
       <div id="adminOrdersList"></div>
     </div>
 
+    <div id="tokenTab" style="display:none;">
+      <div id="tokenQueueList"></div>
+    </div>
+
     <div id="settingsTab" style="display:none;">
       <div class="admin-card">
         <label>Shop Status (Open / Closed)</label>
@@ -986,6 +1008,7 @@
           <button class="small-btn" id="btnTokenOff" style="flex:1;padding:10px;background:#ecd9ad;color:var(--maroon);" onclick="setTokenEnabled(false)">Off</button>
         </div>
         <p style="font-size:11px;color:#8a7a63;margin-bottom:10px;">Har order ko din ka token number milta hai (#1, #2...) — roz 1 se shuru. Customer ko tracking aur WhatsApp me dikhta hai.</p>
+        <button class="small-btn" style="width:100%;padding:10px;background:var(--nonveg);color:#fff;" onclick="resetTokenCounter()">🔄 Reset Token Counter (agla order #1 se)</button>
       </div>
       <div class="admin-card">
         <label>Delivery Service Status</label>
@@ -1269,11 +1292,19 @@ function setTokenEnabled(on){
   }
   refreshAdminOrders();
 }
+let tokenOffset = 0; // manual reset se badhta hai — nextToken() isko ghata kar count karta hai
 function nextToken(){
   // Aaj ke orders gino (Sheet se aaye + local) — agla token
   const t0 = new Date(); t0.setHours(0,0,0,0);
   const todayCount = ORDERS.filter(o => (o.ts||0) >= t0.getTime()).length;
-  return todayCount + 1;
+  return Math.max(1, todayCount - tokenOffset + 1);
+}
+function resetTokenCounter(){
+  if(!confirm("Token counter reset karein? Agla naya order #1 se shuru hoga (purane orders ke token wahi rahenge).")) return;
+  const t0 = new Date(); t0.setHours(0,0,0,0);
+  tokenOffset = ORDERS.filter(o => (o.ts||0) >= t0.getTime()).length;
+  alert("✅ Token counter reset ho gaya! Agla order #1 se shuru hoga.");
+  renderTokenQueue();
 }
 
 function setDeliveryAvailability(available){
@@ -1722,13 +1753,13 @@ function placeOrder(){
 function confirmOnWhatsapp(){
   const o = currentOrder;
   if(!o) return;
-  let msg = `🧾 *New Order #${o.orderId}* — Bake 'N' Wok%0A%0A`;
-  msg += `*Name:* ${o.name}%0A*Phone:* ${o.phone}%0A*Address:* ${o.addr}%0A`;
-  if(o.notes) msg += `*Notes:* ${o.notes}%0A`;
-  msg += `%0A*Items:*%0A`;
-  o.items.forEach(i=> msg += `- ${i.name} x${i.qty} — ₹${i.price*i.qty}%0A`);
-  msg += `%0A*Subtotal:* ₹${o.subtotal}%0A*Delivery:* ₹${o.delivery}%0A*Total: ₹${o.total}*%0A%0A✅ Payment done via UPI`;
-  window.open(`https://wa.me/${CONFIG.whatsappNumber}?text=${msg}`, '_blank');
+  let msg = `🧾 *New Order #${o.orderId}* — Bake 'N' Wok\n\n`;
+  msg += `*Name:* ${o.name}\n*Phone:* ${o.phone}\n*Address:* ${o.addr}\n`;
+  if(o.notes) msg += `*Notes:* ${o.notes}\n`;
+  msg += `\n*Items:*\n`;
+  o.items.forEach(i=> msg += `- ${i.name} x${i.qty} — ₹${i.price*i.qty}\n`);
+  msg += `\n*Subtotal:* ₹${o.subtotal}\n*Delivery:* ₹${o.delivery}\n*Total: ₹${o.total}*\n\n✅ Payment done via UPI`;
+  window.open(`https://wa.me/${CONFIG.whatsappNumber}?text=${encodeURIComponent(msg)}`, '_blank');
 
   closeSheet('payOverlay');
   refreshAdminOrders();
@@ -1918,11 +1949,12 @@ function logoutAdmin(){
   document.getElementById('storeScreen').style.display = 'block';
 }
 function showAdminTab(tab){
-  ['menuTab','ordersTab','settingsTab'].forEach(t=>{
+  ['menuTab','ordersTab','tokenTab','settingsTab'].forEach(t=>{
     document.getElementById(t).style.display = (t===tab)?'block':'none';
   });
   document.querySelectorAll('.admin-tabs button').forEach(b=>b.classList.remove('active'));
   event.target.classList.add('active');
+  if(tab==='tokenTab') renderTokenQueue();
 }
 
 function populateCatSelect(){
@@ -2045,8 +2077,78 @@ function statusColor(s){
   return "#8a7a63";
 }
 
+// Sabhi pending (abhi tak Delivered nahi hue) aaj ke orders ke tokens — admin aur
+// customer, dono jagah isi se list banti hai taaki dono sync me rahein.
+function getPendingTokens(){
+  const t0 = new Date(); t0.setHours(0,0,0,0);
+  return ORDERS
+    .filter(o => o.token && o.status !== 'Delivered' && (o.ts||0) >= t0.getTime())
+    .sort((a,b) => Number(a.token) - Number(b.token));
+}
+
+// Sabhi pending (abhi tak Delivered nahi hue) orders ke token number ek saath —
+// live queue jaisa dikhta hai, taaki owner ek glance me dekh sake kitne token pending hain.
+function renderTokenQueue(){
+  const el = document.getElementById('tokenQueueList');
+  if(!el) return;
+  if(!CONFIG.tokenEnabled){
+    el.innerHTML = `<p style="text-align:center;color:#8a7a63;padding:20px 0;">Token system abhi OFF hai — Settings me jaakar "🎫 On" kar dein.</p>`;
+    return;
+  }
+  const pending = getPendingTokens();
+  if(!pending.length){
+    el.innerHTML = `<p style="text-align:center;color:#8a7a63;padding:20px 0;">🎉 Koi pending token nahi — sab clear hai!</p>`;
+    return;
+  }
+  el.innerHTML = `<div class="day-sum">🎫 <b>${pending.length}</b> token abhi pending</div>` +
+    `<div class="token-queue-grid">` +
+    pending.map(o => `
+      <div class="token-queue-card">
+        <div class="tq-num">#${o.token}</div>
+        <div class="tq-name">${o.name}</div>
+        <div class="tq-status" style="background:${statusColor(o.status)};">${o.status}</div>
+      </div>`).join('') +
+    `</div>`;
+}
+
+// Customer-facing (public, bina login) live token status
+let publicTokenTimer = null;
+function renderPublicTokenQueue(){
+  const el = document.getElementById('publicTokenList');
+  if(!el) return;
+  if(!CONFIG.tokenEnabled){
+    el.innerHTML = `<p style="text-align:center;color:#8a7a63;padding:20px 0;">Abhi token system chalu nahi hai.</p>`;
+    return;
+  }
+  const pending = getPendingTokens();
+  if(!pending.length){
+    el.innerHTML = `<p style="text-align:center;color:#8a7a63;padding:20px 0;">🎉 Abhi koi token pending nahi hai.</p>`;
+    return;
+  }
+  el.innerHTML = `<p style="text-align:center;color:#8a7a63;font-size:12px;margin-bottom:6px;">Yeh list live update hoti hai</p>` +
+    `<div class="token-queue-grid">` +
+    pending.map(o => `
+      <div class="token-queue-card">
+        <div class="tq-num">#${o.token}</div>
+        <div class="tq-status" style="background:${statusColor(o.status)};">${o.status}</div>
+      </div>`).join('') +
+    `</div>`;
+}
+function openPublicTokenQueue(){
+  renderPublicTokenQueue();
+  document.getElementById('publicTokenOverlay').classList.add('show');
+  loadOrdersFromSheet(); // turant fresh data mangwao
+  if(publicTokenTimer) clearInterval(publicTokenTimer);
+  publicTokenTimer = setInterval(()=>{ loadOrdersFromSheet(); renderPublicTokenQueue(); }, 15000);
+}
+function closePublicTokenQueue(){
+  document.getElementById('publicTokenOverlay').classList.remove('show');
+  if(publicTokenTimer){ clearInterval(publicTokenTimer); publicTokenTimer = null; }
+}
+
 function refreshAdminOrders(){
   checkNewOrders();
+  renderTokenQueue();
   const list = document.getElementById('adminOrdersList');
   // Aaj ka hisaab
   const t0 = new Date(); t0.setHours(0,0,0,0);
