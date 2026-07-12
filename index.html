@@ -1895,6 +1895,13 @@ function tryAdminLogin(){
     renderAdminMenu();
     refreshAdminOrders();
     renderCouponAdmin();
+    // Sheet se orders thoda slow load hote hain (Google Apps Script cold-start), isliye
+    // login karte hi turant fresh fetch trigger karo, 30-sec poll ka wait mat karo.
+    const ordersList = document.getElementById('adminOrdersList');
+    if(ordersList && !ORDERS.length){
+      ordersList.innerHTML = `<p style="text-align:center;color:#8a7a63;padding:20px 0;">⏳ Orders load ho rahe hain…</p>`;
+    }
+    loadOrdersFromSheet();
     document.getElementById('cfgUpi').value = CONFIG.upiId;
     document.getElementById('cfgWhatsapp').value = CONFIG.whatsappNumber;
     document.getElementById('cfgDelivery').value = CONFIG.deliveryCharge;
