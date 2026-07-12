@@ -2176,7 +2176,8 @@ function zaraChip(text){
 }
 
 /* ---------- Zara: cart commands ---------- */
-function zaraFindItem(q){
+function zaraFindItem(q, minScore){
+  if(minScore === undefined) minScore = 20;
   q = q.toLowerCase();
   let best = null, bestScore = 0;
   MENU.filter(m=>m.stock).forEach(m=>{
@@ -2190,25 +2191,48 @@ function zaraFindItem(q){
     }
     if(score > bestScore){ bestScore = score; best = m; }
   });
-  return bestScore >= 20 ? best : null;
+  return bestScore >= minScore ? best : null;
 }
 
 function zaraCartCommand(text){
   const q = text.toLowerCase();
-  if(!/add|daal|dal do|daldo|chahiye|de do|dedo|mangwa|order kar|le lo|lelo/.test(q)) return null;
+
+  // Bahut saare tareeke jinse log "add karo" bolte hain — jitne zyada honge utna better
+  const triggerRe = /\b(add|daal|dal do|daldo|chahiye|chaiye|chaihe|de do|dedo|dena|de dena|mangwa|order kar|order laga|order de|order karo|laga do|laga de|karado|kar do|le lo|lelo|bhej do|bhejdo|pack kar|pack karo|send karo|banwa|banwa do|deni|chal|bhij|paka|paka do)\b/;
+  const hasTrigger = triggerRe.test(q);
+
+  // Sawaal jaisa lag raha ho (bina trigger word ke) to order mat samjho — "momos kya hai" != order
+  const questionRe = /\b(kya hai|kaisa hai|kaisi hai|kitna hai|kitne ka|kitne ki|kitni hai|price kya|rate kya|available hai|milta hai|milti hai|hai kya)\b/;
+  const looksLikeQuestion = questionRe.test(q) && !hasTrigger;
+  if(looksLikeQuestion) return null;
+
   // qty nikaalo (digit ya shabd)
   let qty = 1;
   const num = q.match(/\b(\d+)\b/);
   const words = {ek:1,do:2,teen:3,char:4,paanch:5,panch:5,one:1,two:2,three:3,four:4,five:5};
   if(num) qty = Math.min(parseInt(num[1]), 20);
   else { for(const w in words){ if(new RegExp('\\b'+w+'\\b').test(q)){ qty = words[w]; break; } } }
-  // item ka naam nikaalo (command words hata ke)
-  const cleaned = q.replace(/\b(add|daal do|daal|dal do|daldo|chahiye|de do|dedo|mangwa do|mangwa|order karo|order kar|le lo|lelo|karo|kar|do|mujhe|mere liye|cart|me|mein|aur|and|please|plz|\d+|ek|teen|char|paanch|panch|one|two|three|four|five|half|aadha|adha|full|pura|poora)\b/g,' ').replace(/\s+/g,' ').trim();
+
+  // item ka naam nikaalo (command/filler words hata ke)
+  const cleaned = q.replace(/\b(add|daal do|daal|dal do|daldo|chahiye|chaiye|chaihe|de do|dedo|dena|de dena|mangwa do|mangwa|order karo|order kar|order laga|order de|laga do|laga de|karado|kar do|le lo|lelo|bhej do|bhejdo|pack kar|pack karo|send karo|banwa do|banwa|karo|kar|do|mujhe|mere liye|hume|humein|cart|me|mein|ka|ki|order|aur|and|please|plz|\d+|ek|teen|char|paanch|panch|one|two|three|four|five|half|aadha|adha|full|pura|poora)\b/g,' ').replace(/\s+/g,' ').trim();
   if(cleaned.length < 3) return null;
-  const item = zaraFindItem(cleaned);
-  if(!item) return {miss:cleaned};
-  const wantHalf = /\b(half|aadha|adha)\b/.test(q) && item.priceHalf;
-  return {item, qty, half: wantHalf};
+
+  if(hasTrigger){
+    // Trigger word mil gaya — item dhoondo, chahe partial/fuzzy naam ho
+    const item = zaraFindItem(cleaned);
+    if(!item) return {miss:cleaned};
+    const wantHalf = /\b(half|aadha|adha)\b/.test(q) && item.priceHalf;
+    return {item, qty, half: wantHalf};
+  }
+
+  // Koi explicit trigger word nahi mila — phir bhi agar dish ka naam saaf-saaf pehchana ja raha hai
+  // (jaise sirf "2 momos" ya "veg burger"), to bhi order maan lo, taaki koi bhi tarah bole samajh aaye.
+  const item = zaraFindItem(cleaned, 60);
+  if(item){
+    const wantHalf = /\b(half|aadha|adha)\b/.test(q) && item.priceHalf;
+    return {item, qty, half: wantHalf};
+  }
+  return null;
 }
 
 function zaraUpsell(addedItem){
@@ -2347,10 +2371,13 @@ async function zaraAI(text){
     });
     const data = await res.json();
     console.log('[Zara worker response]', res.status, data); // DEBUG: browser console (F12) me dekho
-    const reply = data.reply || data.content
+    const reply = data.reply || data.content || data.message || data.result || data.output || data.text
       || (data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content)
-      || (data.error && ('Worker error: ' + (data.error.message || JSON.stringify(data.error))))
-      || 'Sorry, main abhi jawab nahi de paayi. Thodi der baad try karo. 🙏';
+      || (data.error && ('Worker error: ' + (data.error.message || JSON.stringify(data.error))));
+    if(!reply){
+      console.warn('[Zara] Worker response format unrecognized, using local fallback. Raw:', data);
+      return zaraLocal(text);
+    }
     zaraHistory.push({role:'assistant', content:reply});
     return reply;
   }catch(err){
