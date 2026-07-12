@@ -939,8 +939,9 @@
   <div class="sheet">
     <h2>Admin Login <button class="close" onclick="closeSheet('adminLoginOverlay')">×</button></h2>
     <label>Admin Password</label>
-    <input id="adminPass" type="password" placeholder="Enter password">
+    <input id="adminPass" type="password" placeholder="Enter password" autocapitalize="off" autocorrect="off" spellcheck="false" onkeydown="if(event.key==='Enter') tryAdminLogin()">
     <button class="btn" onclick="tryAdminLogin()">Login</button>
+    <p style="font-size:11px;color:#8a7a63;margin-top:4px;">Enter dabakar bhi login kar sakte ho.</p>
   </div>
 </div>
 
@@ -1918,8 +1919,8 @@ function openAdminLogin(){
   document.getElementById('adminLoginOverlay').classList.add('show');
 }
 function tryAdminLogin(){
-  const pass = document.getElementById('adminPass').value;
-  if(pass === CONFIG.adminPassword){
+  const pass = document.getElementById('adminPass').value.trim();
+  if(pass.toLowerCase() === CONFIG.adminPassword.toLowerCase()){
     closeSheet('adminLoginOverlay');
     document.getElementById('storeScreen').style.display = 'none';
     document.getElementById('adminScreen').style.display = 'block';
