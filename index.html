@@ -2128,6 +2128,7 @@ const ZARA_API_URL = "https://zeroscale-proxy.deewakar-sharma516.workers.dev/gro
 
 let zaraHistory = [];
 let zaraOpened = false;
+let zaraLastShown = []; // last set of items Zara suggested — used to resolve short replies like "90 wala"
 
 function zaraSystemPrompt(){
   const menuList = MENU.filter(m=>m.stock).map(m=>`${m.name} (${m.cat}) Rs${m.price}`).join('; ');
@@ -2194,8 +2195,34 @@ function zaraFindItem(q, minScore){
   return bestScore >= minScore ? best : null;
 }
 
+// Devanagari (देवनागरी) me likhe gaye common order-shabdon ko Hinglish/Latin me badal do,
+// taaki neeche wali saari regex-matching (jo Latin script ke liye bani hai) Hindi script par bhi chale.
+const DEVA_MAP = [
+  // trigger / action words
+  [/चाहिए|चाइए|चाहिये/g,'chahiye'], [/दे\s*दो/g,'de do'], [/डाल\s*दो|दाल\s*दो/g,'daal do'],
+  [/लगा\s*दो/g,'laga do'], [/मंगवा\s*दो|मंगवा/g,'mangwa do'], [/ऑर्डर\s*कर\s*दो|ऑर्डर\s*करो|आर्डर\s*लगा\s*दो|आर्डर\s*करो/g,'order karo'],
+  [/पैक\s*कर\s*दो|पैक\s*करो/g,'pack karo'], [/भेज\s*दो/g,'bhej do'], [/कर\s*दो/g,'kar do'], [/ले\s*लो|लेलो/g,'le lo'],
+  [/चाहता\s*हूं|चाहती\s*हूं|चहिए/g,'chahiye'],
+  // qty words
+  [/एक/g,'ek'], [/दो\b/g,'do'], [/तीन/g,'teen'], [/चार/g,'char'], [/पांच|पाँच/g,'paanch'],
+  // half/full
+  [/आधा|अधा/g,'aadha'], [/पूरा|पुरा/g,'full'],
+  // "X wala" style reference
+  [/वाला|वाली|वाले/g,'wala'],
+  // common food keywords -> match MENU names (English)
+  [/वेज\b/g,'veg'], [/पनीर/g,'paneer'], [/चीज़|चीज/g,'cheese'], [/बर्गर/g,'burger'],
+  [/पिज़्ज़ा|पिज्जा|पिज़्जा/g,'pizza'], [/मोमोज़|मोमोज|मोमो/g,'momos'], [/चाउमीन|चाउ\s*मीन/g,'chowmein'],
+  [/नूडल्स|नूडल/g,'noodles'], [/मंचूरियन/g,'manchurian'], [/चिल्ली|चिली/g,'chilli'],
+  [/तंदूरी/g,'tandoori'], [/स्टीम्ड|स्टीम/g,'steamed'], [/फ्राइड/g,'fried'],
+];
+function normalizeHindiScript(t){
+  let out = t;
+  DEVA_MAP.forEach(([re, rep])=>{ out = out.replace(re, rep); });
+  return out;
+}
+
 function zaraCartCommand(text){
-  const q = text.toLowerCase();
+  const q = normalizeHindiScript(text.toLowerCase());
 
   // Bahut saare tareeke jinse log "add karo" bolte hain — jitne zyada honge utna better
   const triggerRe = /\b(add|daal|dal do|daldo|chahiye|chaiye|chaihe|de do|dedo|dena|de dena|mangwa|order kar|order laga|order de|order karo|laga do|laga de|karado|kar do|le lo|lelo|bhej do|bhejdo|pack kar|pack karo|send karo|banwa|banwa do|deni|chal|bhij|paka|paka do)\b/;
@@ -2222,7 +2249,10 @@ function zaraCartCommand(text){
     const item = zaraFindItem(cleaned);
     if(!item) return {miss:cleaned};
     const wantHalf = /\b(half|aadha|adha)\b/.test(q) && item.priceHalf;
-    return {item, qty, half: wantHalf};
+    // agar number item ke price se match karta hai (jaise "veg burger 90"), to woh price-reference hai,
+    // quantity nahi — qty ko 1 hi maano.
+    const finalQty = (num && (item.price === parseInt(num[1]) || item.priceHalf === parseInt(num[1]))) ? 1 : qty;
+    return {item, qty: finalQty, half: wantHalf};
   }
 
   // Koi explicit trigger word nahi mila — phir bhi agar dish ka naam saaf-saaf pehchana ja raha hai
@@ -2230,7 +2260,18 @@ function zaraCartCommand(text){
   const item = zaraFindItem(cleaned, 60);
   if(item){
     const wantHalf = /\b(half|aadha|adha)\b/.test(q) && item.priceHalf;
-    return {item, qty, half: wantHalf};
+    const finalQty = (num && (item.price === parseInt(num[1]) || item.priceHalf === parseInt(num[1]))) ? 1 : qty;
+    return {item, qty: finalQty, half: wantHalf};
+  }
+
+  // "90 wala" / "wo 90 wala" jaisa reply — pichhle message me dikhaye gaye options me se
+  // price se match karo (isse "90 वाला" jaisa short reply bhi samajh aata hai).
+  if(num && /\bwala\b/.test(q)){
+    const priceNum = parseInt(num[1]);
+    const pool = (zaraLastShown && zaraLastShown.length ? zaraLastShown : MENU.filter(m=>m.stock));
+    const matches = pool.filter(m=>m.price === priceNum || m.priceHalf === priceNum);
+    if(matches.length === 1) return {item: matches[0], qty: 1, half: matches[0].priceHalf === priceNum};
+    if(matches.length > 1) return {miss: cleaned};
   }
   return null;
 }
@@ -2347,14 +2388,16 @@ function zaraLocal(qRaw){
   if(/pay|payment|upi|cash|paisa/.test(q))
     return `UPI se online pay karo, ya delivery par bhi. Checkout par QR code mil jaayega. 💳`;
   if(/popular|best|recommend|suggest|tasty|acha|famous/.test(q)){
-    const picks = MENU.filter(m=>m.stock).slice(0,4).map(m=>`${m.name} (₹${m.price})`).join(', ');
+    const picks = MENU.filter(m=>m.stock).slice(0,4);
+    zaraLastShown = picks;
     renderZaraChips(['🥟 Momos','🍕 Pizza','🍔 Burgers','🍜 Chowmein']);
-    return `Yeh sab log bahut order karte hain: ${picks}. Bolo "add <dish ka naam>" — main cart me daal dungi! 😋`;
+    return `Yeh sab log bahut order karte hain: ${picks.map(m=>`${m.name} (₹${m.price})`).join(', ')}. Bolo "add <dish ka naam>" ya bas price bata do (jaise "90 wala") — main cart me daal dungi! 😋`;
   }
   const hit = MENU.filter(m=>m.stock && (m.name.toLowerCase().includes(q) || m.cat.toLowerCase().includes(q)));
   if(hit.length){
-    const list = hit.slice(0,5).map(m=>`• ${m.name} — ₹${m.price}`).join('\n');
-    return `Yeh mile "${qRaw}" me:\n${list}\n\nBolo "add <naam>" — main cart me daal dungi! 🛒`;
+    zaraLastShown = hit.slice(0,5);
+    const list = zaraLastShown.map(m=>`• ${m.name} — ₹${m.price}`).join('\n');
+    return `Yeh mile "${qRaw}" me:\n${list}\n\nBolo "add <naam>" ya price bata do (jaise "90 wala") — main cart me daal dungi! 🛒`;
   }
   renderZaraChips(['🥟 Popular dishes','🌿 Sab veg hai?','🛵 Delivery charge','🕒 Timings']);
   return `Main dish suggest kar sakti hoon, cart me add kar sakti hoon (bolo "2 momos add karo"), order status bata sakti hoon, aur party orders me help kar sakti hoon. Kya chahiye? 🙂`;
@@ -2371,9 +2414,16 @@ async function zaraAI(text){
     });
     const data = await res.json();
     console.log('[Zara worker response]', res.status, data); // DEBUG: browser console (F12) me dekho
+
+    // Agar provider (Groq/Cerebras) ne error/rate-limit diya hai (jaise "Tokens per minute
+    // limit exceeded"), user ko raw error mat dikhao — chup-chaap built-in local reply do.
+    if(!res.ok || data.error){
+      console.warn('[Zara] AI provider error, using local fallback. Raw:', data);
+      return zaraLocal(text);
+    }
+
     const reply = data.reply || data.content || data.message || data.result || data.output || data.text
-      || (data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content)
-      || (data.error && ('Worker error: ' + (data.error.message || JSON.stringify(data.error))));
+      || (data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content);
     if(!reply){
       console.warn('[Zara] Worker response format unrecognized, using local fallback. Raw:', data);
       return zaraLocal(text);
