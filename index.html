@@ -2346,12 +2346,17 @@ async function zaraAI(text){
       body: JSON.stringify({ model:'llama-3.3-70b-versatile', messages: [{role:'system', content: zaraSystemPrompt()}, ...zaraHistory.slice(-8)] })
     });
     const data = await res.json();
+    console.log('[Zara worker response]', res.status, data); // DEBUG: browser console (F12) me dekho
     const reply = data.reply || data.content
       || (data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content)
+      || (data.error && ('Worker error: ' + (data.error.message || JSON.stringify(data.error))))
       || 'Sorry, main abhi jawab nahi de paayi. Thodi der baad try karo. 🙏';
     zaraHistory.push({role:'assistant', content:reply});
     return reply;
-  }catch(err){ return zaraLocal(text); }
+  }catch(err){
+    console.error('[Zara fetch failed]', err); // DEBUG: browser console (F12) me dekho
+    return zaraLocal(text);
+  }
 }
 
 /* ---------- Zara: Hindi voice input 🎤 ---------- */
