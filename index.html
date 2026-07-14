@@ -718,6 +718,28 @@
   .gal-btn{background:var(--teal); color:#fff; border:none; border-radius:12px; padding:10px 14px; font-size:13px; font-weight:700; cursor:pointer; white-space:nowrap;}
   .gal-btn:hover{filter:brightness(1.08);}
   .gal-status{font-size:12px;}
+
+  /* live order track banner */
+  .track-banner{
+    display:block; width:calc(100% - 28px); max-width:720px; margin:10px auto 0;
+    padding:12px 16px; background:linear-gradient(135deg,#2563ab,#1f6b5e); color:#fff;
+    border:none; border-radius:14px; font-size:14px; cursor:pointer; text-align:center;
+    box-shadow:0 4px 14px rgba(37,99,171,.28);
+  }
+  .track-banner:hover{filter:brightness(1.07);}
+  .myord-track{background:#2563ab; color:#fff; border:none; border-radius:12px; padding:6px 14px; font-size:12.5px; font-weight:700; cursor:pointer;}
+
+  /* admin auto-refresh bar */
+  .sync-bar{display:flex; align-items:center; gap:7px; flex-wrap:wrap; font-size:12.5px; color:#5a4a3a; margin-bottom:8px;}
+  .live-dot{width:9px; height:9px; border-radius:50%; background:#22c55e; animation:livepulse 1.6s infinite;}
+  @keyframes livepulse{0%,100%{box-shadow:0 0 0 0 rgba(34,197,94,.5);}50%{box-shadow:0 0 0 5px rgba(34,197,94,0);}}
+  .sync-time{color:#8a7a63;}
+  .sync-btn{margin-left:auto; background:#fff; color:var(--maroon); border:1.5px solid var(--gold-light); border-radius:12px; padding:5px 12px; font-size:12px; font-weight:700; cursor:pointer;}
+  .sync-btn:hover{background:var(--gold-light);}
+  .ost-steps{display:flex; gap:8px; margin-top:8px; flex-wrap:wrap;}
+  .ost-next.later{background:#fff; color:var(--maroon); border:1.5px solid var(--gold-light);}
+  .ost-next.later:hover{background:var(--gold-light);}
+  .ost-done{margin-top:8px; font-size:13px; color:#3d8b40; font-weight:700;}
   @media(min-width:748px){ .rev-strip, #repeatBanner{margin-left:auto; margin-right:auto;} }
 
   /* repeat order */
@@ -793,6 +815,7 @@
 
   <div id="deliveryStatusBanner"></div>
   <div id="happyBanner"></div>
+  <div id="trackBanner"></div>
 
   <button class="rider-cta" onclick="openPage('partner')">🛵 Book a Delivery Rider — compare rates (Porter · Rapido)</button>
 
@@ -1028,9 +1051,32 @@
 <div class="overlay" id="adminLoginOverlay">
   <div class="sheet">
     <h2>Admin Login <button class="close" onclick="closeSheet('adminLoginOverlay')">×</button></h2>
-    <label>Admin Password</label>
-    <input id="adminPass" type="password" placeholder="Enter password">
-    <button class="btn" onclick="tryAdminLogin()">Login</button>
+
+    <div id="passBox">
+      <label>Admin Password</label>
+      <input id="adminPass" type="password" placeholder="Enter password" onkeydown="if(event.key==='Enter')tryAdminLogin()">
+      <button class="btn" onclick="tryAdminLogin()">Login</button>
+      <p style="text-align:center;margin-top:8px;">
+        <a onclick="showOtpBox()" style="font-size:13px;color:var(--flame);cursor:pointer;">Password bhool gaye? / Unlock karein →</a>
+      </p>
+    </div>
+
+    <div id="otpBox" style="display:none;">
+      <p style="font-size:13px;color:#8a7a63;margin-bottom:8px;">Aapke registered email par OTP bhejenge. OTP daal kar naya password set karein.</p>
+      <button class="btn outline" onclick="sendAdminOtp()">📧 OTP bhejo (email par)</button>
+      <label style="margin-top:10px;">OTP (6 digit)</label>
+      <input id="otpInput" type="text" inputmode="numeric" placeholder="123456" maxlength="6">
+      <label>Naya Password (kam se kam 6 character)</label>
+      <input id="newPass1" type="password" placeholder="Naya password">
+      <label>Naya Password dobara</label>
+      <input id="newPass2" type="password" placeholder="Dobara likhein">
+      <button class="btn" onclick="verifyAdminOtp()">✅ Unlock + Password badlein</button>
+      <p style="text-align:center;margin-top:8px;">
+        <a onclick="document.getElementById('otpBox').style.display='none';document.getElementById('passBox').style.display='block';adminMsg('');" style="font-size:13px;color:#8a7a63;cursor:pointer;">← Wapas login par</a>
+      </p>
+    </div>
+
+    <p id="adminMsg" style="font-size:13px;text-align:center;margin-top:10px;min-height:18px;"></p>
   </div>
 </div>
 
@@ -1083,6 +1129,14 @@
     </div>
 
     <div id="settingsTab" style="display:none;">
+      <div class="admin-card">
+        <label>🔐 Password badlein</label>
+        <input id="cpOld" type="password" placeholder="Purana password" style="margin-bottom:6px;">
+        <input id="cpNew1" type="password" placeholder="Naya password (6+ character)" style="margin-bottom:6px;">
+        <input id="cpNew2" type="password" placeholder="Naya password dobara" style="margin-bottom:6px;">
+        <button class="btn" onclick="changeAdminPassword()">Password badlein</button>
+        <p style="font-size:11px;color:#8a7a63;margin-top:6px;">Password Google Sheet me surakshit rehta hai — code me kahin nahi.</p>
+      </div>
       <div class="admin-card">
         <label>Shop Status (Open / Closed)</label>
         <div style="display:flex; gap:8px; margin-bottom:6px;">
@@ -1176,7 +1230,12 @@ const CONFIG = {
   deliveryAvailable: true, // toggle from Admin > Settings
   shopOpen: true,          // when false, shows "closed" banner and blocks new orders
   tokenEnabled: true,      // daily token numbers (#1, #2...) — Admin > Settings se on/off
-  adminPassword: "zero",    // <-- change this
+  // 🔐 Password ab CODE ME NAHI — Google Sheet ke "Config" tab me rehta hai.
+  // Isliye koi file dekh kar bhi password nahi nikaal sakta.
+  // Pehli baar ka password: 20260707  (Sheet me khud ban jaayega)
+  // 5 galat koshish = PERMANENT block → email OTP se unlock + naya password.
+  adminSecret: "bnw-x7k9-2026-a4f1",
+  keepAdminOpen: true,          // admin panel khula rehta hai (refresh par bhi)
   restaurantName: "Bake 'N' Wok",
   // Top-of-page video banner (like Zomato/Swiggy show on their home screen).
   // Paste a DIRECT link to your own food/product video here (an .mp4 link works best).
@@ -1206,17 +1265,19 @@ async function loadProductsFromSheet(){
     if(data && data.ok && Array.isArray(data.products) && data.products.length){
       data.products.forEach(p=>{
         if(!p.name) return;
+        const price = Math.max(0, Math.min(100000, Number(p.price) || 0));
+        const half  = Math.max(0, Math.min(100000, Number(p.priceHalf) || 0));
         MENU.push({
           id: nextItemId++,
-          cat: p.category || 'More',
-          name: p.name,
+          cat: cleanText(p.category, 40) || 'More',
+          name: cleanText(p.name, 80),
           veg: 'veg',
-          price: Number(p.price) || 0,
-          desc: p.desc || '',
+          price: price,
+          desc: cleanText(p.desc, 200),
           stock: p.stock !== false,
-          img: p.img || placeholderImg(p.name,'7a1f3d','ffffff'),
-          video: p.video || CONFIG.demoProductVideo,
-          priceHalf: Number(p.priceHalf) || null
+          img: safeUrl(p.img) || placeholderImg(p.name,'7a1f3d','ffffff'),
+          video: safeUrl(p.video) || CONFIG.demoProductVideo,
+          priceHalf: half || null
         });
       });
       renderCategoryGrid();
@@ -1229,14 +1290,49 @@ async function loadProductsFromSheet(){
 }
 
 // Fire-and-forget write to the sheet (new product or new order).
+/* ---------- SECURITY: escaping, validation, rate-limit ---------- */
+// HTML escape — koi <script> ya code page me chipak na sake
+function esc(s){
+  return String(s==null?'':s)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+// Sirf http(s) links chalein — javascript: jaise link block
+function safeUrl(u){
+  const s = String(u||'').trim();
+  return /^https?:\/\//i.test(s) ? s : '';
+}
+function cleanText(s, max){
+  return String(s==null?'':s).replace(/[<>]/g,'').trim().slice(0, max || 120);
+}
+function validPhone(p){
+  const d = String(p||'').replace(/\D/g,'');
+  return d.length === 10 ? d : '';
+}
+// Ek device se jaldi-jaldi bahut orders na jaayein
+let lastPostAt = 0;
+function rateLimitOk(ms){
+  const now = Date.now();
+  if(now - lastPostAt < (ms || 3000)) return false;
+  lastPostAt = now;
+  return true;
+}
+
+// Admin wale actions — inke saath secret bhejna zaroori hai
+const ADMIN_ACTIONS = ['addProduct','updateStatus','deleteProduct'];
+
 function sheetPost(payload){
   if(!SHEET_URL) return;
   try{
+    const body = Object.assign({}, payload);
+    if(ADMIN_ACTIONS.indexOf(body.action) !== -1){
+      body.secret = CONFIG.adminSecret;   // Apps Script isko check karega
+    }
     fetch(SHEET_URL, {
       method:'POST',
       mode:'no-cors',
       headers:{'Content-Type':'text/plain;charset=utf-8'},
-      body: JSON.stringify(payload)
+      body: JSON.stringify(body)
     });
   }catch(err){ console.log('Sheet save skipped:', err); }
 }
@@ -1300,14 +1396,27 @@ async function loadOrdersFromSheet(){
         mode: o.mode, time: o.time,
         ts: o.ts || Date.parse(o.time) || 0,
         token: o.token || '',
-        status: o.status || 'Pending Confirmation'
+        status: statusOverride[o.orderId] || String(o.status || 'Pending Confirmation').trim()
       }))];
       if(!ordersLoadedOnce){ lastOrderCount = ORDERS.length; ordersLoadedOnce = true; computeBestseller(); }
+      lastSync = new Date();
       refreshAdminOrders();
+      renderTrackBanner();
     }
   }catch(e){ /* net issue — agle poll me try hoga */ }
 }
-setInterval(loadOrdersFromSheet, 30000); // har 30 second me naye orders check
+let lastSync = null;
+const statusOverride = {};   // {orderId: status} — aapka dabaya hua status, Sheet se overwrite nahi hoga
+function adminIsOpen(){
+  const a = document.getElementById('adminScreen');
+  return a && a.style.display === 'block';
+}
+// Admin khula ho to har 10 second, warna har 30 second
+let pollTick = 0;
+setInterval(()=>{
+  pollTick += 10;
+  if(adminIsOpen() || pollTick >= 30){ pollTick = 0; loadOrdersFromSheet(); }
+}, 10000);
 let orderCounter = 1001;
 let currentOrder = null;
 let nextItemId = 21;
@@ -1459,9 +1568,9 @@ function renderItemCard(item){
       </div>
       <div class="veg-dot"></div>
       <div class="item-info">
-        ${item.badge?`<span class="item-badge ${/new/i.test(item.badge)?'new':/spic|🌶/i.test(item.badge)?'spicy':''}">${item.badge}</span>`:''}
-        <div class="name">${item.name}</div>
-        <div class="desc">${item.desc||''}</div>
+        ${item.badge?`<span class="item-badge ${/new/i.test(item.badge)?'new':/spic|🌶/i.test(item.badge)?'spicy':''}">${esc(item.badge)}</span>`:''}
+        <div class="name">${esc(item.name)}</div>
+        <div class="desc">${esc(item.desc||'')}</div>
         <div class="price">${priceLine} ${!item.stock?'<span class="stock-tag"> · Out of stock</span>':''}</div>
       </div>
       <div class="qty-box">
@@ -1866,19 +1975,22 @@ function openCheckout(){
    ============================================================ */
 function placeOrder(){
   if(!CONFIG.shopOpen){ alert("Sorry, hum abhi band hain. Baad me order karein 🙏"); return; }
-  const name = document.getElementById('custName').value.trim();
-  const phone = document.getElementById('custPhone').value.trim();
-  const addr = document.getElementById('custAddr').value.trim();
-  const notes = document.getElementById('custNotes').value.trim();
+  const name = cleanText(document.getElementById('custName').value, 60);
+  const phone = validPhone(document.getElementById('custPhone').value);
+  const addr = cleanText(document.getElementById('custAddr').value, 250);
+  const notes = cleanText(document.getElementById('custNotes').value, 200);
 
   if(!name || !phone || (currentMode==='delivery' && !addr)){
     alert("Please fill your name, phone number, and address.");
     return;
   }
-  if(phone.length!==10 || isNaN(phone)){
+  if(!phone){
     alert("Please enter a valid 10-digit phone number.");
     return;
   }
+  const b0 = computeBill();
+  if(!b0.items.length){ alert("Cart khaali hai 🙂"); return; }
+  if(!rateLimitOk(5000)){ alert("Thoda ruk kar dobara try karein 🙏"); return; }
 
   const b = computeBill();
   const items = b.items, subtotal = b.subtotal, delivery = b.delivery, total = b.total;
@@ -1943,13 +2055,17 @@ function payNowTapped(){
 function confirmOnWhatsapp(){
   const o = currentOrder;
   if(!o) return;
-  let msg = `🧾 *New Order #${o.orderId}* — Bake 'N' Wok%0A%0A`;
-  msg += `*Name:* ${o.name}%0A*Phone:* ${o.phone}%0A*Address:* ${o.addr}%0A`;
-  if(o.notes) msg += `*Notes:* ${o.notes}%0A`;
-  msg += `%0A*Items:*%0A`;
-  o.items.forEach(i=> msg += `- ${i.name} x${i.qty} — ₹${i.price*i.qty}%0A`);
-  msg += `%0A*Subtotal:* ₹${o.subtotal}%0A*Delivery:* ₹${o.delivery}%0A*Total: ₹${o.total}*%0A%0A✅ Payment done via UPI`;
-  window.open(`https://wa.me/${CONFIG.whatsappNumber}?text=${msg}`, '_blank');
+  let msg = `🧾 *New Order #${o.orderId}* — Bake 'N' Wok\n`;
+  if(CONFIG.tokenEnabled && o.token) msg += `🎫 *Token #${o.token}*\n`;
+  msg += `\n*Name:* ${o.name}\n*Phone:* ${o.phone}\n*Address:* ${o.addr}\n`;
+  if(o.notes) msg += `*Notes:* ${o.notes}\n`;
+  msg += `\n*Items:*\n`;
+  o.items.forEach(i=> msg += `• ${i.name} x${i.qty} — ₹${i.price*i.qty}\n`);
+  msg += `\n*Subtotal:* ₹${o.subtotal}\n`;
+  if(o.discount) msg += `*Coupon (${o.coupon}):* − ₹${o.discount}\n`;
+  msg += `*Delivery:* ₹${o.delivery}\n*Total: ₹${o.total}*\n\n✅ Payment done via UPI`;
+  // encodeURIComponent zaroori hai — warna "#" ke baad ka message kat jaata hai
+  window.open(`https://wa.me/${CONFIG.whatsappNumber}?text=${encodeURIComponent(msg)}`, '_blank');
 
   closeSheet('payOverlay');
   refreshAdminOrders();
@@ -2033,6 +2149,7 @@ function closeTrackScreen(){
   if(trackPoll) clearInterval(trackPoll);
   document.getElementById('trackScreen').style.display = 'none';
   document.getElementById('storeScreen').style.display = 'block';
+  renderTrackBanner();
 }
 
 /* ---------- RECEIPT / PARCHI 🧾 ---------- */
@@ -2070,17 +2187,44 @@ function renderKDS(){
   const box = document.getElementById('kdsBody');
   if(!live.length){ box.innerHTML = `<p style="text-align:center;color:#fff;opacity:.7;padding:40px 0;font-size:20px;">Koi pending order nahi 🎉</p>`; return; }
   box.innerHTML = live.map(o=>{
-    const idx = ORDER_STATUSES.indexOf(o.status);
+    const st = String(o.status||'').trim();
+    let idx = ORDER_STATUSES.indexOf(st);
+    if(idx === -1) idx = 0;
     const next = ORDER_STATUSES[idx+1];
     const itemsTxt = Array.isArray(o.items) ? o.items.map(i=>`${i.name} <b>x${i.qty}</b>`).join('<br>') : (o.items||'');
     return `<div class="kds-card">
       <div class="kds-top">${CONFIG.tokenEnabled && o.token ? `<span class="kds-token">🎫 #${o.token}</span>` : `#${o.orderId}`}
         <span class="kds-mode">${o.mode==='delivery'?'🛵':'🏪'}</span></div>
       <div class="kds-items">${itemsTxt}</div>
-      <div class="kds-status" style="background:${statusColor(o.status)};">${o.status}</div>
+      <div class="kds-status" style="background:${statusColor(st)};">${esc(st)}</div>
       ${next ? `<button class="kds-next" onclick="setOrderStatus('${o.orderId}','${next}')">➡️ ${next}</button>` : ''}
     </div>`;
   }).join('');
+}
+
+/* ---------- LIVE ORDER BANNER (homepage par "Track Order") 📍 ---------- */
+function renderTrackBanner(){
+  const el = document.getElementById('trackBanner');
+  if(!el) return;
+  const ph = savedPhone();
+  if(!ph){ el.innerHTML=''; return; }
+  const mine = ORDERS.filter(o =>
+    String(o.phone).replace(/\D/g,'').slice(-10) === String(ph).replace(/\D/g,'').slice(-10)
+    && o.status !== 'Delivered');
+  if(!mine.length){ el.innerHTML=''; return; }
+  const o = mine[0];
+  el.innerHTML = `<button class="track-banner" onclick="trackOrderById('${o.orderId}')">
+      📍 Aapka order <b>#${o.orderId}</b>${CONFIG.tokenEnabled && o.token ? ` (🎫 #${o.token})`:''} — <b>${o.status}</b> · Track karein →
+    </button>`;
+}
+setInterval(renderTrackBanner, 30000);
+
+/* Kisi bhi purane order ki tracking dobara kholo */
+function trackOrderById(orderId){
+  const o = ORDERS.find(x=>String(x.orderId)===String(orderId));
+  if(!o) return;
+  document.getElementById('myOrdersOverlay').classList.remove('show');
+  startTracking(o);
 }
 
 /* ---------- MERE ORDERS (customer apne orders dekhe) 📦 ---------- */
@@ -2099,8 +2243,11 @@ function openMyOrders(){
         return `<div class="myord-card">
           <div class="myord-top"><b>#${o.orderId}</b> ${CONFIG.tokenEnabled && o.token ? `<span class="token-pill">🎫 #${o.token}</span>`:''} <span class="myord-amt">₹${o.total}</span></div>
           <div class="myord-time">${o.time||''} · ${o.mode==='delivery'?'🛵 Delivery':'🏪 Pickup'}</div>
-          <div class="myord-items">${itemsTxt}</div>
-          <span class="ostatus" style="background:${statusColor(o.status)};">${o.status}</span>
+          <div class="myord-items">${esc(itemsTxt)}</div>
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+            <span class="ostatus" style="background:${statusColor(o.status)};margin-top:0;">${o.status}</span>
+            ${o.status !== 'Delivered' ? `<button class="myord-track" onclick="trackOrderById('${o.orderId}')">📍 Track</button>` : ''}
+          </div>
         </div>`;
       }).join('');
     }
@@ -2173,7 +2320,7 @@ async function loadRatings(){
     if(!el || !data || !data.ok || !data.count) return;
     const stars = '★'.repeat(Math.round(data.avg)) + '☆'.repeat(5-Math.round(data.avg));
     const quotes = (data.latest||[]).filter(r=>r.comment).slice(0,3)
-      .map(r=>`<div class="rev-q">"${r.comment}" <span>— ${r.name||'Customer'}</span></div>`).join('');
+      .map(r=>`<div class="rev-q">"${esc(r.comment)}" <span>— ${esc(r.name||'Customer')}</span></div>`).join('');
     el.innerHTML = gBadge + `<div class="rev-strip">
       <div class="rev-head"><span class="rev-stars">${stars}</span> <b>${Number(data.avg).toFixed(1)}</b> · ${data.count} app review${data.count==1?'':'s'}</div>
       ${quotes}
@@ -2205,32 +2352,145 @@ function repeatLastOrder(){
 /* ============================================================
    ADMIN
    ============================================================ */
+/* ============================================================
+   🔐 ADMIN AUTH — password Google Sheet me (code me nahi)
+   • 5 galat koshish = PERMANENT block (Sheet me)
+   • Unlock: email OTP → naya password set
+   • Admin panel khula rehta hai (refresh par bhi logged-in)
+   ============================================================ */
+async function sha256(text){
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
+  return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
+}
+async function authCall(params){
+  const url = SHEET_URL + '?' + new URLSearchParams(Object.assign({secret: CONFIG.adminSecret}, params)).toString();
+  const res = await fetch(url);
+  return await res.json();
+}
+function adminMsg(text, color){
+  const el = document.getElementById('adminMsg');
+  if(el){ el.textContent = text; el.style.color = color || '#8a7a63'; }
+}
+
 function openAdminLogin(){
   document.getElementById('adminLoginOverlay').classList.add('show');
+  document.getElementById('otpBox').style.display = 'none';
+  document.getElementById('passBox').style.display = 'block';
+  adminMsg('');
 }
-function tryAdminLogin(){
+
+async function tryAdminLogin(){
   const pass = document.getElementById('adminPass').value;
-  if(pass === CONFIG.adminPassword){
-    closeSheet('adminLoginOverlay');
-    document.getElementById('storeScreen').style.display = 'none';
-    document.getElementById('adminScreen').style.display = 'block';
-    renderAdminMenu();
-    refreshAdminOrders();
-    renderCouponAdmin();
-    document.getElementById('cfgUpi').value = CONFIG.upiId;
-    document.getElementById('cfgWhatsapp').value = CONFIG.whatsappNumber;
-    document.getElementById('cfgDelivery').value = CONFIG.deliveryCharge;
-    document.getElementById('btnDeliveryOn').style.background = CONFIG.deliveryAvailable ? 'var(--teal)' : '#ecd9ad';
-    document.getElementById('btnDeliveryOn').style.color = CONFIG.deliveryAvailable ? '#fff' : 'var(--maroon)';
-    document.getElementById('btnDeliveryOff').style.background = CONFIG.deliveryAvailable ? '#ecd9ad' : 'var(--nonveg)';
-    document.getElementById('btnDeliveryOff').style.color = CONFIG.deliveryAvailable ? 'var(--maroon)' : '#fff';
-  } else {
-    alert("Wrong password.");
-  }
+  if(!pass){ adminMsg('Password daaliye.', '#c0392b'); return; }
+  if(!SHEET_URL){ adminMsg('Sheet link nahi laga — login nahi ho sakta.', '#c0392b'); return; }
+  adminMsg('⏳ Check kar rahe hain…');
+  try{
+    const hash = await sha256(pass);
+    const r = await authCall({action:'login', hash});
+    if(r.ok){
+      try{ localStorage.setItem('bnw_admin_session', hash); }catch(e){}
+      document.getElementById('adminPass').value = '';
+      openAdminPanel();
+    } else if(r.blocked){
+      adminMsg('🔒 Account BLOCK ho gaya. Neeche OTP se unlock karein.', '#c0392b');
+      showOtpBox();
+    } else {
+      adminMsg('❌ Galat password. ' + (5 - (r.tries||0)) + ' koshish bachi.', '#c0392b');
+    }
+  }catch(e){ adminMsg('Net problem — dobara try karein.', '#c0392b'); }
 }
-function logoutAdmin(){
+
+function showOtpBox(){
+  document.getElementById('passBox').style.display = 'none';
+  document.getElementById('otpBox').style.display = 'block';
+}
+
+async function sendAdminOtp(){
+  adminMsg('⏳ OTP bhej rahe hain…');
+  try{
+    const r = await authCall({action:'sendOtp'});
+    adminMsg(r.ok ? '✅ OTP aapke email par bhej diya (10 min tak valid).' : '❌ OTP nahi bheja ja saka.', r.ok ? '#1f6b5e' : '#c0392b');
+  }catch(e){ adminMsg('Net problem — dobara try karein.', '#c0392b'); }
+}
+
+async function verifyAdminOtp(){
+  const otp = document.getElementById('otpInput').value.trim();
+  const np1 = document.getElementById('newPass1').value;
+  const np2 = document.getElementById('newPass2').value;
+  if(!otp){ adminMsg('OTP daaliye.', '#c0392b'); return; }
+  if(np1.length < 6){ adminMsg('Naya password kam se kam 6 character ka rakhein.', '#c0392b'); return; }
+  if(np1 !== np2){ adminMsg('Dono password alag hain.', '#c0392b'); return; }
+  adminMsg('⏳ Verify kar rahe hain…');
+  try{
+    const newHash = await sha256(np1);
+    const r = await authCall({action:'verifyOtp', otp, newHash});
+    if(r.ok){
+      try{ localStorage.setItem('bnw_admin_session', newHash); }catch(e){}
+      alert('✅ Password badal gaya aur account unlock ho gaya!');
+      document.getElementById('otpInput').value='';
+      document.getElementById('newPass1').value='';
+      document.getElementById('newPass2').value='';
+      openAdminPanel();
+    } else {
+      adminMsg('❌ ' + (r.error === 'expired' ? 'OTP expire ho gaya — naya OTP bhejein.' : 'Galat OTP.'), '#c0392b');
+    }
+  }catch(e){ adminMsg('Net problem — dobara try karein.', '#c0392b'); }
+}
+
+/* Admin panel kholo (login ke baad, ya session se) */
+function openAdminPanel(){
+  closeSheet('adminLoginOverlay');
+  document.getElementById('storeScreen').style.display = 'none';
+  document.getElementById('adminScreen').style.display = 'block';
+  loadOrdersFromSheet();
+  renderAdminMenu();
+  refreshAdminOrders();
+  renderCouponAdmin();
+  document.getElementById('cfgUpi').value = CONFIG.upiId;
+  document.getElementById('cfgWhatsapp').value = CONFIG.whatsappNumber;
+  document.getElementById('cfgDelivery').value = CONFIG.deliveryCharge;
+  document.getElementById('btnDeliveryOn').style.background = CONFIG.deliveryAvailable ? 'var(--teal)' : '#ecd9ad';
+  document.getElementById('btnDeliveryOn').style.color = CONFIG.deliveryAvailable ? '#fff' : 'var(--maroon)';
+  document.getElementById('btnDeliveryOff').style.background = CONFIG.deliveryAvailable ? '#ecd9ad' : 'var(--nonveg)';
+  document.getElementById('btnDeliveryOff').style.color = CONFIG.deliveryAvailable ? 'var(--maroon)' : '#fff';
+}
+
+/* Refresh/dobara kholne par bhi admin khula rahe — koi auto-logout nahi */
+async function restoreAdminSession(){
+  if(!CONFIG.keepAdminOpen || !SHEET_URL) return;
+  let hash = null;
+  try{ hash = localStorage.getItem('bnw_admin_session'); }catch(e){}
+  if(!hash) return;
+  try{
+    const r = await authCall({action:'login', hash});
+    if(r.ok) openAdminPanel();
+    else { try{ localStorage.removeItem('bnw_admin_session'); }catch(e){} }
+  }catch(e){}
+}
+
+function exitAdmin(){
+  try{ localStorage.removeItem('bnw_admin_session'); }catch(e){}
   document.getElementById('adminScreen').style.display = 'none';
   document.getElementById('storeScreen').style.display = 'block';
+  const p = document.getElementById('adminPass'); if(p) p.value = '';
+}
+function logoutAdmin(){ exitAdmin(); }
+
+/* Settings se apni marzi ka naya password (jab logged in ho) */
+async function changeAdminPassword(){
+  const cur = document.getElementById('cpOld').value;
+  const np1 = document.getElementById('cpNew1').value;
+  const np2 = document.getElementById('cpNew2').value;
+  if(np1.length < 6){ alert('Naya password kam se kam 6 character ka rakhein.'); return; }
+  if(np1 !== np2){ alert('Dono naye password alag hain.'); return; }
+  try{
+    const r = await authCall({action:'changePass', hash: await sha256(cur), newHash: await sha256(np1)});
+    if(r.ok){
+      try{ localStorage.setItem('bnw_admin_session', await sha256(np1)); }catch(e){}
+      document.getElementById('cpOld').value=''; document.getElementById('cpNew1').value=''; document.getElementById('cpNew2').value='';
+      alert('✅ Password badal gaya!');
+    } else { alert('❌ Purana password galat hai.'); }
+  }catch(e){ alert('Net problem — dobara try karein.'); }
 }
 function showAdminTab(tab){
   ['menuTab','ordersTab','settingsTab'].forEach(t=>{
@@ -2428,8 +2688,10 @@ function setOrderStatus(orderId, status){
   const o = ORDERS.find(x=>x.orderId===orderId);
   if(!o) return;
   o.status = status;
+  statusOverride[orderId] = status;                      // Sheet slow ho to bhi wapas na palte
   sheetPost({action:'updateStatus', orderId, status});   // Sheet me bhi save
   refreshAdminOrders();
+  renderTrackBanner();
   window.open(waStatusLink(o), '_blank');                // WhatsApp message turant khul jaata hai — bas Send dabao
 }
 
@@ -2460,7 +2722,12 @@ function refreshAdminOrders(){
   const today = ORDERS.filter(o => (o.ts||0) >= t0.getTime());
   const week  = ORDERS.filter(o => (o.ts||0) >= w0.getTime());
   const month = ORDERS.filter(o => (o.ts||0) >= m0.getTime());
-  const summary = `<div class="day-sum">
+  const summary = `<div class="sync-bar">
+      <span class="live-dot"></span> Auto-refresh ON (har 10 sec)
+      <span class="sync-time">${lastSync ? '· Updated ' + lastSync.toLocaleTimeString() : '· syncing…'}</span>
+      <button class="sync-btn" onclick="loadOrdersFromSheet()">🔄 Abhi refresh</button>
+    </div>
+    <div class="day-sum">
       📅 Aaj: <b>${today.length}</b> · ₹${sum(today)} &nbsp;|&nbsp;
       🗓️ Hafta: <b>${week.length}</b> · ₹${sum(week)} &nbsp;|&nbsp;
       🈷️ Mahina: <b>${month.length}</b> · ₹${sum(month)}
@@ -2471,8 +2738,10 @@ function refreshAdminOrders(){
     return;
   }
   list.innerHTML = summary + ORDERS.map(o=>{
-    const idx = ORDER_STATUSES.indexOf(o.status);
-    const next = ORDER_STATUSES[idx+1];
+    const st = String(o.status||'').trim();
+    let idx = ORDER_STATUSES.indexOf(st);
+    if(idx === -1) idx = 0;                       // anjaan status → shuru se
+    const rest = ORDER_STATUSES.slice(idx+1);     // saare aage ke steps
     const itemsTxt = Array.isArray(o.items) ? o.items.map(i=>`${i.name} x${i.qty}`).join(', ') : (o.items||'');
     const mapBtn = (o.mode==='delivery' && o.addr && o.addr!=='Pickup from store')
       ? `<a class="ost-map" href="https://www.google.com/maps?q=${encodeURIComponent(o.addr)}" target="_blank">🗺️ Map</a>` : '';
@@ -2480,12 +2749,14 @@ function refreshAdminOrders(){
     <div class="order-card">
       <div class="oid">Order #${o.orderId} — ₹${o.total} ${CONFIG.tokenEnabled && o.token ? `<span class="token-pill">🎫 #${o.token}</span>` : ''}</div>
       <div style="font-size:12px;color:#8a7a63;margin:4px 0;">${o.time||''} · ${o.mode==='delivery'?'🛵 Delivery':'🏪 Pickup'}</div>
-      <div style="font-size:13px;"><b>${o.name}</b> · ${o.phone}</div>
-      <div style="font-size:12px;color:#8a7a63;">${o.addr||''}</div>
-      <div style="font-size:13px;margin-top:6px;">${itemsTxt}</div>
-      <div class="ostatus" style="background:${statusColor(o.status)};">${o.status}</div>
+      <div style="font-size:13px;"><b>${esc(o.name)}</b> · ${esc(o.phone)}</div>
+      <div style="font-size:12px;color:#8a7a63;">${esc(o.addr||'')}</div>
+      <div style="font-size:13px;margin-top:6px;">${esc(itemsTxt)}</div>
+      <div class="ostatus" style="background:${statusColor(st)};">${esc(st)}</div>
+      ${rest.length ? `<div class="ost-steps">
+        ${rest.map((s,k)=>`<button class="ost-next ${k===0?'':'later'}" onclick="setOrderStatus('${o.orderId}','${s}')">➡️ ${s}</button>`).join('')}
+      </div>` : '<div class="ost-done">✅ Order poora ho gaya</div>'}
       <div class="ost-actions">
-        ${next ? `<button class="ost-next" onclick="setOrderStatus('${o.orderId}','${next}')">➡️ ${next}</button>` : ''}
         <a class="ost-wa" href="${waStatusLink(o)}" target="_blank">💬 WhatsApp</a>
         <a class="ost-call" href="tel:${o.phone}">📞 Call</a>
         <button class="ost-print" onclick="printReceipt('${o.orderId}')">🧾 Receipt</button>
@@ -3152,6 +3423,8 @@ loadOrdersFromSheet();
 renderRepeatBanner();
 loadRatings();
 renderHappyBanner();
+renderTrackBanner();
+restoreAdminSession();   // admin khula tha to khula hi rahega
 document.getElementById('footYear').textContent = new Date().getFullYear();
 
 /* ============================================================
