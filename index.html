@@ -475,6 +475,13 @@
     transition:opacity .3s, transform .3s;
   }
   .zara-nudge.show{opacity:1; transform:translateY(0); pointer-events:auto;}
+  /* Jab koi sheet/overlay khuli ho (cart, checkout, payment, pages, chooser, KDS) — Zara button chhup jaye */
+  body:has(.overlay.show) .zara-fab, body:has(.overlay.show) .zara-nudge,
+  body:has(.page-overlay.show) .zara-fab, body:has(.page-overlay.show) .zara-nudge,
+  body:has(.var-overlay.show) .zara-fab, body:has(.var-overlay.show) .zara-nudge,
+  body:has(.kds-overlay.show) .zara-fab, body:has(.kds-overlay.show) .zara-nudge{
+    opacity:0; pointer-events:none;
+  }
 
   /* half/full variant chooser */
   .var-overlay{position:fixed; inset:0; z-index:190; background:rgba(20,8,14,.55); display:none; align-items:center; justify-content:center; padding:20px;}
