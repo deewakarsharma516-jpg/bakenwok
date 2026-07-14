@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Privacy Policy — Bake 'N' Wok</title>
+<meta name="description" content="Privacy Policy for Bake 'N' Wok — 100% pure-veg cloud kitchen, Faridabad.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@600;700&family=Poppins:wght@400;600&display=swap" rel="stylesheet">
+<style>
+  :root{ --maroon:#7a1f3d; --flame:#d9622c; --gold:#e6b653; }
+  *{box-sizing:border-box;}
+  body{margin:0; font-family:'Poppins',sans-serif; color:#3a2a22; background:#faf5ec; line-height:1.7;}
+  header{background:linear-gradient(135deg,var(--maroon),var(--flame)); color:#fff; padding:32px 20px;}
+  header h1{font-family:'Fraunces',serif; margin:0 0 6px; font-size:28px;}
+  header p{margin:0; opacity:.9; font-size:14px;}
+  main{max-width:760px; margin:0 auto; padding:28px 20px 60px;}
+  .card{background:#fff; border:1px solid #f0e8da; border-radius:16px; padding:26px 28px;}
+  h2{font-family:'Fraunces',serif; color:var(--maroon); font-size:20px; margin:26px 0 8px;}
+  h2:first-of-type{margin-top:0;}
+  ul{padding-left:20px;} li{margin-bottom:6px;}
+  a{color:var(--flame);}
+  .muted{color:#8a7a63; font-size:13px;}
+  .lang{display:flex; gap:8px; margin-bottom:18px;}
+  .lang button{border:1.5px solid var(--gold); background:#fff; color:var(--maroon); border-radius:20px; padding:7px 16px; font-weight:600; cursor:pointer; font-size:13px;}
+  .lang button.active{background:var(--maroon); color:#fff; border-color:var(--maroon);}
+  footer{text-align:center; padding:22px; color:#8a7a63; font-size:13px;}
+</style>
+</head>
+<body>
+<header>
+  <h1>Privacy Policy</h1>
+  <p>Bake 'N' Wok — 100% Pure Veg Cloud Kitchen, Faridabad</p>
+</header>
+
+<main>
+  <div class="lang">
+    <button id="bEn" class="active" onclick="setLang('en')">English</button>
+    <button id="bHi" onclick="setLang('hi')">हिंदी</button>
+  </div>
+
+  <div class="card" id="content"></div>
+</main>
+
+<footer>
+  Bake 'N' Wok · Shop No. 6, Near Gupta General Store, Masjid Road, Dayal Nagar, Faridabad – 121003 (HR)<br>
+  📞 <a href="tel:9076769441">9076769441</a> · ✉️ <a href="mailto:bakenwok@gmail.com">bakenwok@gmail.com</a>
+</footer>
+
+<script>
+const EMAIL = "bakenwok@gmail.com";
+const PHONE = "9076769441";
+const UPDATED = "14 July 2026";
+
+const EN = `
+  <p class="muted">Last updated: ${UPDATED}</p>
+  <h2>Introduction</h2>
+  <p>Bake 'N' Wok ("we", "us") operates the Bake 'N' Wok website and app, which allows customers to order food online. We respect your privacy and only collect what we need to serve you.</p>
+
+  <h2>Information we collect</h2>
+  <ul>
+    <li><b>Contact details</b> — your name, phone number and delivery address, provided by you at checkout.</li>
+    <li><b>Order details</b> — the items you order, the amount, and the order status.</li>
+    <li><b>Feedback</b> — ratings and comments you choose to submit.</li>
+    <li><b>Usage data</b> — anonymous analytics (pages viewed, device type) via Google Analytics, to improve the app.</li>
+  </ul>
+
+  <h2>How we use it</h2>
+  <ul>
+    <li>To prepare, confirm and deliver your order.</li>
+    <li>To contact you about your order (by phone or WhatsApp).</li>
+    <li>To improve our menu and service.</li>
+  </ul>
+
+  <h2>Payments</h2>
+  <p>Payments are made through UPI apps (PhonePe, Paytm, Google Pay, etc.). We never see or store your bank account, card, UPI PIN or any payment credentials. Those are handled entirely by your UPI app and your bank.</p>
+
+  <h2>Data storage &amp; sharing</h2>
+  <ul>
+    <li>Your order details are stored in a private Google Sheet accessible only to Bake 'N' Wok.</li>
+    <li>Photos uploaded by the restaurant are hosted on ImgBB.</li>
+    <li>We do <b>not</b> sell, rent, or trade your information with anyone.</li>
+    <li>If you choose to book a delivery rider yourself (Porter, Rapido, Uber), that booking happens on their app under their own privacy policy.</li>
+  </ul>
+
+  <h2>Data stored on your device</h2>
+  <p>To make ordering easier, we save your name, phone, address, last cart and loyalty points in your own browser's local storage. This stays on your device. You can clear it any time by clearing your browser data.</p>
+
+  <h2>Children</h2>
+  <p>Our service is not directed to children under 13, and we do not knowingly collect their information.</p>
+
+  <h2>Your rights</h2>
+  <p>You may ask us to see, correct or delete the personal information we hold about you. Write to <a href="mailto:${EMAIL}">${EMAIL}</a> or call <a href="tel:${PHONE}">${PHONE}</a> and we will act on it promptly.</p>
+
+  <h2>Changes</h2>
+  <p>We may update this policy from time to time. The latest version will always be available on this page.</p>
+
+  <h2>Contact</h2>
+  <p>Bake 'N' Wok<br>
+  Shop No. 6, Near Gupta General Store, Masjid Road, Dayal Nagar, Faridabad – 121003 (HR)<br>
+  Email: <a href="mailto:${EMAIL}">${EMAIL}</a> · Phone: <a href="tel:${PHONE}">${PHONE}</a></p>
+`;
+
+const HI = `
+  <p class="muted">आख़िरी बार अपडेट: ${UPDATED}</p>
+  <h2>परिचय</h2>
+  <p>Bake 'N' Wok ("हम") Bake 'N' Wok वेबसाइट और ऐप चलाता है, जहाँ ग्राहक ऑनलाइन खाना ऑर्डर कर सकते हैं। हम आपकी प्राइवेसी का सम्मान करते हैं और उतनी ही जानकारी लेते हैं जितनी सेवा देने के लिए ज़रूरी है।</p>
+
+  <h2>हम कौन-सी जानकारी लेते हैं</h2>
+  <ul>
+    <li><b>संपर्क जानकारी</b> — आपका नाम, फ़ोन नंबर और डिलीवरी पता, जो आप चेकआउट पर देते हैं।</li>
+    <li><b>ऑर्डर की जानकारी</b> — आपने क्या मंगाया, कितनी रकम, और ऑर्डर का स्टेटस।</li>
+    <li><b>फ़ीडबैक</b> — आपकी दी हुई रेटिंग और टिप्पणी।</li>
+    <li><b>उपयोग डेटा</b> — Google Analytics से गुमनाम आँकड़े (कौन-से पेज देखे गए), सिर्फ़ ऐप सुधारने के लिए।</li>
+  </ul>
+
+  <h2>इसका उपयोग</h2>
+  <ul>
+    <li>आपका ऑर्डर बनाने, कन्फ़र्म करने और डिलीवर करने के लिए।</li>
+    <li>ऑर्डर के बारे में आपसे संपर्क करने के लिए (फ़ोन या व्हाट्सएप)।</li>
+    <li>अपना मेन्यू और सेवा बेहतर बनाने के लिए।</li>
+  </ul>
+
+  <h2>पेमेंट</h2>
+  <p>पेमेंट UPI ऐप्स (PhonePe, Paytm, Google Pay आदि) के ज़रिये होता है। हम आपके बैंक खाते, कार्ड, UPI पिन या किसी भी पेमेंट जानकारी को न देखते हैं, न स्टोर करते हैं। यह सब आपकी UPI ऐप और बैंक संभालते हैं।</p>
+
+  <h2>डेटा कहाँ रखा जाता है</h2>
+  <ul>
+    <li>ऑर्डर की जानकारी एक निजी Google Sheet में रहती है, जिस तक सिर्फ़ Bake 'N' Wok की पहुँच है।</li>
+    <li>रेस्टोरेंट द्वारा अपलोड की गई तस्वीरें ImgBB पर होस्ट होती हैं।</li>
+    <li>हम आपकी जानकारी किसी को <b>न बेचते हैं, न किराये पर देते हैं</b>।</li>
+    <li>अगर आप खुद डिलीवरी राइडर बुक करते हैं (Porter, Rapido, Uber), तो वह बुकिंग उनकी ऐप पर, उनकी अपनी प्राइवेसी पॉलिसी के तहत होती है।</li>
+  </ul>
+
+  <h2>आपके डिवाइस पर सेव जानकारी</h2>
+  <p>ऑर्डर आसान बनाने के लिए हम आपका नाम, फ़ोन, पता, पिछला कार्ट और लॉयल्टी पॉइंट आपके ही ब्राउज़र में सेव करते हैं। यह आपके डिवाइस पर ही रहता है। ब्राउज़र डेटा साफ़ करके आप इसे कभी भी हटा सकते हैं।</p>
+
+  <h2>बच्चे</h2>
+  <p>हमारी सेवा 13 वर्ष से कम उम्र के बच्चों के लिए नहीं है, और हम जानबूझकर उनकी जानकारी नहीं लेते।</p>
+
+  <h2>आपके अधिकार</h2>
+  <p>आप अपनी जानकारी देखने, सुधारने या हटवाने के लिए कह सकते हैं। <a href="mailto:${EMAIL}">${EMAIL}</a> पर लिखें या <a href="tel:${PHONE}">${PHONE}</a> पर कॉल करें — हम तुरंत कार्रवाई करेंगे।</p>
+
+  <h2>बदलाव</h2>
+  <p>हम इस पॉलिसी को समय-समय पर अपडेट कर सकते हैं। नवीनतम संस्करण हमेशा इसी पेज पर मिलेगा।</p>
+
+  <h2>संपर्क</h2>
+  <p>Bake 'N' Wok<br>
+  Shop No. 6, Near Gupta General Store, Masjid Road, Dayal Nagar, Faridabad – 121003 (HR)<br>
+  ईमेल: <a href="mailto:${EMAIL}">${EMAIL}</a> · फ़ोन: <a href="tel:${PHONE}">${PHONE}</a></p>
+`;
+
+function setLang(l){
+  document.getElementById('content').innerHTML = l === 'hi' ? HI : EN;
+  document.getElementById('bEn').classList.toggle('active', l === 'en');
+  document.getElementById('bHi').classList.toggle('active', l === 'hi');
+}
+setLang('en');
+</script>
+</body>
+</html>

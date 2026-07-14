@@ -1,14 +1,30 @@
 {
   "name": "Bake 'N' Wok — Pure Veg Cloud Kitchen",
   "short_name": "Bake 'N' Wok",
-  "description": "100% pure-veg cloud kitchen in Faridabad. Order momos, burgers, pizza, chowmein & more.",
+  "description": "100% pure-veg cloud kitchen in Dayal Nagar, Faridabad. Order momos, burgers, pizza, chowmein, manchurian and more — fresh, hot and delivered fast. Live order tracking, AI assistant Zara, loyalty points and daily offers.",
+  "id": "/bakenwok/",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",
   "orientation": "portrait",
   "background_color": "#ffffff",
   "theme_color": "#7a1f3d",
+  "lang": "en-IN",
+  "dir": "ltr",
+  "categories": ["food", "shopping", "lifestyle"],
   "icons": [
-    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
-  ]
+    { "src": "playstore/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "playstore/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "playstore/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" },
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ],
+  "screenshots": [
+    { "src": "playstore/screenshot-1.png", "sizes": "1080x1920", "type": "image/png", "form_factor": "narrow", "label": "Browse the pure-veg menu" },
+    { "src": "playstore/screenshot-2.png", "sizes": "1080x1920", "type": "image/png", "form_factor": "narrow", "label": "Track your order live" }
+  ],
+  "shortcuts": [
+    { "name": "Order Now", "short_name": "Order", "url": "./index.html", "description": "Browse menu and order" },
+    { "name": "My Orders", "short_name": "Orders", "url": "./index.html#orders", "description": "See your orders and track" }
+  ],
+  "prefer_related_applications": false
 }
