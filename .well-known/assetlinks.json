@@ -1,0 +1,8 @@
+[{
+      "relation": ["delegate_permission/common.handle_all_urls"],
+      "target": {
+        "namespace": "android_app",
+        "package_name": "in.bakenwok.app",
+        "sha256_cert_fingerprints": ["12:9F:6E:E0:09:A3:32:42:44:4B:17:1F:88:1B:F3:A4:65:3D:1A:44:16:73:1E:8B:0F:1E:47:09:02:59:FB:79"]
+      }
+    }]
