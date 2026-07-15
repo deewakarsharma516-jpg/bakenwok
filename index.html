@@ -686,6 +686,19 @@
   .token-big{background:#f5a623; color:#5a3a00; padding:3px 12px; border-radius:14px; font-size:15px; font-weight:800;}
   .token-pill{background:#f5a623; color:#5a3a00; padding:2px 9px; border-radius:12px; font-size:11.5px; font-weight:800; margin-left:6px;}
 
+  /* rider registration form */
+  .rd-in{width:100%; box-sizing:border-box; margin-bottom:8px; padding:11px 13px; border:1.5px solid var(--gold-light); border-radius:12px; font-size:14px; font-family:inherit;}
+  .rd-in:focus{outline:none; border-color:var(--flame);}
+  .rd-lbl{display:block; font-size:12.5px; color:#8a7a63; margin:2px 0 4px;}
+  .gal-btn{background:var(--teal); color:#fff; border:none; border-radius:12px; padding:9px 14px; font-size:13px; font-weight:700; cursor:pointer; white-space:nowrap;}
+  .gal-btn:hover{filter:brightness(1.08);}
+  .doc-row{display:flex; align-items:center; gap:10px; flex-wrap:wrap; padding:8px 0; border-bottom:1px dashed #f0e8da;}
+  .doc-label{flex:1; min-width:150px; font-size:14px;}
+  .doc-status{font-size:12px; flex-basis:100%;}
+  .doc-status a{color:var(--flame);}
+  .rd-check{display:flex; gap:8px; align-items:flex-start; margin-top:14px; font-size:13px; color:#5a4a3a; cursor:pointer;}
+  .rd-check input{margin-top:3px;}
+
 </style>
 </head>
 <body>
@@ -752,6 +765,7 @@
       <a onclick="openPage('refund')">Refund &amp; Cancellation</a>
       <a onclick="openPage('delivery')">Delivery Policy</a>
       <a onclick="openPage('partner')">🛵 Book a Rider</a>
+      <a onclick="openPage('joinrider')">🤝 Delivery Partner Banein</a>
       <a onclick="openPage('scanpay')">💳 Scan &amp; Pay</a>
       <a onclick="openRating('')">⭐ Rate Us</a>
     </div>
@@ -1241,6 +1255,98 @@ function sheetPost(payload){
       body: JSON.stringify(payload)
     });
   }catch(err){ console.log('Sheet save skipped:', err); }
+}
+
+/* ============================================================
+   DELIVERY PARTNER (RIDER) REGISTRATION 🛵
+   Documents ImgBB par upload hote hain, sirf link Sheet me jaata hai.
+   ============================================================ */
+const IMGBB_KEY = "227103a6377eb18097b7a8e08f70c0d4";
+const riderDocs = {};  // {field: uploaded_url}
+
+function _compressImage(file, maxW){
+  return new Promise((resolve, reject)=>{
+    const reader = new FileReader();
+    reader.onload = e=>{
+      const img = new Image();
+      img.onload = ()=>{
+        const scale = Math.min(1, maxW / img.width);
+        const c = document.createElement('canvas');
+        c.width = Math.round(img.width * scale);
+        c.height = Math.round(img.height * scale);
+        c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+        resolve(c.toDataURL('image/jpeg', 0.8).split(',')[1]);
+      };
+      img.onerror = reject; img.src = e.target.result;
+    };
+    reader.onerror = reject; reader.readAsDataURL(file);
+  });
+}
+
+async function uploadRiderDoc(input, field){
+  const file = input.files && input.files[0];
+  if(!file) return;
+  const status = document.getElementById('st_'+field);
+  status.textContent = '⏳ Upload ho raha hai…'; status.style.color = '#8a7a63';
+  try{
+    const b64 = await _compressImage(file, 1000);
+    const fd = new FormData();
+    fd.append('key', IMGBB_KEY);
+    fd.append('image', b64);
+    const res = await fetch('https://api.imgbb.com/1/upload', { method:'POST', body: fd });
+    const data = await res.json();
+    if(data && data.success && data.data && data.data.url){
+      riderDocs[field] = data.data.url;
+      status.innerHTML = '✅ Upload ho gaya <a href="'+data.data.url+'" target="_blank">(dekhein)</a>';
+      status.style.color = '#1f6b5e';
+    } else { throw new Error('failed'); }
+  }catch(err){
+    status.textContent = '❌ Upload nahi hua — dobara try karein.'; status.style.color = '#c0392b';
+  }
+  input.value = '';
+}
+
+function submitRiderForm(){
+  const g = id => (document.getElementById(id).value||'').trim();
+  const name = g('rd_name'), phone = g('rd_phone').replace(/\D/g,''), dob = g('rd_dob');
+  const addr = g('rd_addr'), city = g('rd_city');
+  const bike = g('rd_bike'), vnum = g('rd_vnum');
+  const bankName = g('rd_bankname'), acc = g('rd_acc'), ifsc = g('rd_ifsc');
+  const agree = document.getElementById('rd_agree').checked;
+  const msg = document.getElementById('riderMsg');
+
+  if(!name || phone.length!==10 || !dob || !addr){
+    msg.textContent = '❌ Naam, sahi 10-digit phone, DOB aur address zaroori hain.'; msg.style.color='#c0392b'; return;
+  }
+  if(!bike || !vnum){
+    msg.textContent = '❌ Bike aur vehicle number bharein.'; msg.style.color='#c0392b'; return;
+  }
+  // zaroori documents
+  const need = {photo:'Profile photo', aadhaar:'Aadhaar', dl:'Driving License', rc:'RC'};
+  for(const k in need){ if(!riderDocs[k]){ msg.textContent = '❌ '+need[k]+' upload karein.'; msg.style.color='#c0392b'; return; } }
+  if(!agree){ msg.textContent = '❌ Declaration par tick karein.'; msg.style.color='#c0392b'; return; }
+
+  msg.textContent = '⏳ Bhej rahe hain…'; msg.style.color='#8a7a63';
+  sheetPost({
+    action:'riderRegister',
+    time: new Date().toLocaleString(),
+    name, phone, dob, city, address: addr,
+    bike, vehicleNo: vnum,
+    bankName, account: acc, ifsc,
+    photo: riderDocs.photo||'', aadhaar: riderDocs.aadhaar||'', aadhaarBack: riderDocs.aadhaarBack||'',
+    pan: riderDocs.pan||'', dl: riderDocs.dl||'', dlBack: riderDocs.dlBack||'',
+    rc: riderDocs.rc||'', insurance: riderDocs.insurance||'', puc: riderDocs.puc||'',
+    status:'Pending Approval'
+  });
+  setTimeout(()=>{
+    msg.textContent = '✅ Registration ho gaya! Hum documents check karke aapse sampark karenge. 🙏';
+    msg.style.color = '#1f6b5e';
+    // form clear
+    ['rd_name','rd_phone','rd_dob','rd_addr','rd_city','rd_bike','rd_vnum','rd_bankname','rd_acc','rd_ifsc'].forEach(i=>document.getElementById(i).value='');
+    document.getElementById('rd_agree').checked = false;
+    Object.keys(riderDocs).forEach(k=>delete riderDocs[k]);
+    document.querySelectorAll('[id^="st_"]').forEach(el=>el.textContent='');
+  }, 800);
 }
 
 /* ============================================================
@@ -2786,8 +2892,63 @@ const PAGES = {
       <p style="text-align:center;">Is QR ko <b>kisi bhi UPI app</b> (Paytm, PhonePe, GPay, BHIM) se scan karein aur amount daalein.</p>
       <img src="${PAY_QR_DATA}" alt="Bake 'N' Wok UPI QR" style="display:block;max-width:280px;width:100%;margin:6px auto;border-radius:12px;border:1px solid #f0e8da;">
       <p style="text-align:center;" class="muted">UPI ID: <b>${CONFIG.upiId}</b><br>Payment ke baad screenshot <a href="https://wa.me/${PAGE_INFO.whatsapp}" target="_blank">WhatsApp</a> par bhej dein.</p>`
+  },
+  joinrider: {
+    title: { en: "Become a Delivery Partner", hi: "डिलीवरी पार्टनर बनें" },
+    en: riderFormHTML(),
+    hi: riderFormHTML()
   }
 };
+
+function docRow(field, label, required){
+  return `<div class="doc-row">
+      <div class="doc-label">${label}${required?' <span style="color:#c0392b">*</span>':''}</div>
+      <button type="button" class="gal-btn" onclick="document.getElementById('f_${field}').click()">📷 Upload</button>
+      <input type="file" id="f_${field}" accept="image/*" capture="environment" style="display:none" onchange="uploadRiderDoc(this,'${field}')">
+      <span id="st_${field}" class="doc-status"></span>
+    </div>`;
+}
+function riderFormHTML(){
+  return `
+  <p>Bake 'N' Wok ke saath jud kar apni marzi se kaam karein — jaise aap Rapido/Porter par karte hain. 🛵 Neeche form bharein, hum documents check karke aapse sampark karenge.</p>
+
+  <h3>Aapki jaankari</h3>
+  <input id="rd_name" class="rd-in" placeholder="Poora naam*">
+  <input id="rd_phone" class="rd-in" inputmode="numeric" placeholder="Phone number (10 digit)*">
+  <label class="rd-lbl">Date of Birth* (18+ zaroori)</label>
+  <input id="rd_dob" class="rd-in" type="date">
+  <input id="rd_city" class="rd-in" placeholder="Area / City (jaise Dayal Nagar, Faridabad)">
+  <textarea id="rd_addr" class="rd-in" rows="2" placeholder="Poora address*"></textarea>
+
+  <h3>Vehicle (Bike)</h3>
+  <input id="rd_bike" class="rd-in" placeholder="Bike model (jaise Splendor 2019)*">
+  <input id="rd_vnum" class="rd-in" placeholder="Vehicle number (HR51 AB 1234)*" style="text-transform:uppercase">
+
+  <h3>Bank details (payment ke liye)</h3>
+  <input id="rd_bankname" class="rd-in" placeholder="Account holder ka naam">
+  <input id="rd_acc" class="rd-in" inputmode="numeric" placeholder="Account number">
+  <input id="rd_ifsc" class="rd-in" placeholder="IFSC code" style="text-transform:uppercase">
+
+  <h3>Documents (photo kheench ke upload karein)</h3>
+  ${docRow('photo','📷 Aapki profile photo', true)}
+  ${docRow('aadhaar','🆔 Aadhaar (front)', true)}
+  ${docRow('aadhaarBack','🆔 Aadhaar (back)', false)}
+  ${docRow('pan','💳 PAN card', false)}
+  ${docRow('dl','🚗 Driving License (front)', true)}
+  ${docRow('dlBack','🚗 Driving License (back)', false)}
+  ${docRow('rc','📄 Vehicle RC', true)}
+  ${docRow('insurance','🛡️ Insurance', false)}
+  ${docRow('puc','🌫️ PUC certificate', false)}
+
+  <label class="rd-check">
+    <input type="checkbox" id="rd_agree">
+    <span>Main 18+ hoon, meri di hui jaankari aur documents sahi hain, aur main traffic niyam maan kar surakshit delivery karunga.</span>
+  </label>
+
+  <button class="btn" style="margin-top:8px" onclick="submitRiderForm()">✅ Register karein</button>
+  <p id="riderMsg" style="font-size:13.5px;text-align:center;margin-top:10px;min-height:18px;"></p>
+  <p class="muted" style="margin-top:6px;">Sawaal? WhatsApp: <a href="https://wa.me/${PAGE_INFO.whatsapp}" target="_blank">${PAGE_INFO.phone}</a></p>`;
+}
 
 function renderPage(){
   const p = PAGES[currentPageKey];
