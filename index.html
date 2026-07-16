@@ -2927,8 +2927,8 @@ function zaraSystemPrompt(){
     + `Reply in warm Hinglish, keep answers short (1-3 sentences). Help customers choose dishes and answer about menu, delivery and payment. `
     + `Free-delivery service has NOT started yet: after order confirmation the customer books their own rider (Porter/Borzo/Swiggy Genie) from the app's Book a Rider section and pays the rider charge themselves; Pickup is also available. All food is pure veg. `
     + `Today's menu: ${menuList}. `
-    + `If the customer wants to add something to cart, tell them to say exactly: add <dish name> (the app handles it). `
-    + `For party/bulk orders tell them to type: party order. For order status tell them to type: order status. `
+    + `IMPORTANT ORDERING RULE: You can add items to the customer's cart yourself. Whenever the customer expresses ANY intent to order/eat/get a dish (in any words, any language, any spelling — e.g. "bhaiya 2 momos bhej do", "paneer roll khana hai", "ek pizza de dena", "i want chowmein"), reply with a short friendly confirmation AND include one hidden action tag per item on its own line in this exact format: [[ADD: <qty> x <exact dish name from menu> | half]] (write "| half" only if they asked for half portion, otherwise omit it). Example: [[ADD: 2 x Veg Momos]]. Use ONLY exact dish names from the menu above. If their request roughly matches a menu dish, pick the closest one. If nothing on the menu matches, suggest 2-3 similar dishes instead and do NOT output any tag. `
+    + `If the customer asks their order status, include the tag [[STATUS]]. If they mention party/bulk/catering/event order, include the tag [[PARTY]]. `
     + `If asked something unrelated, gently steer back to food ordering. Never invent items that aren't on the menu.`;
 }
 
@@ -2985,22 +2985,33 @@ function zaraFindItem(q){
   return bestScore >= 20 ? best : null;
 }
 
+const ZARA_ORDER_VERBS = /add|daal|dal do|daldo|chahiye|de do|dedo|de dena|dena|dila|bhej|bhijwa|mangwa|mangao|manga do|order kar|le lo|lelo|lena hai|leni hai|khana hai|khani hai|kha lunga|kha lungi|bana do|banao|i want|want|send|get me|lao|la do|lado/;
+
 function zaraCartCommand(text){
   const q = text.toLowerCase();
-  if(!/add|daal|dal do|daldo|chahiye|de do|dedo|mangwa|order kar|le lo|lelo/.test(q)) return null;
-  // qty nikaalo (digit ya shabd)
-  let qty = 1;
-  const num = q.match(/\b(\d+)\b/);
-  const words = {ek:1,do:2,teen:3,char:4,paanch:5,panch:5,one:1,two:2,three:3,four:4,five:5};
-  if(num) qty = Math.min(parseInt(num[1]), 20);
-  else { for(const w in words){ if(new RegExp('\\b'+w+'\\b').test(q)){ qty = words[w]; break; } } }
-  // item ka naam nikaalo (command words hata ke)
-  const cleaned = q.replace(/\b(add|daal do|daal|dal do|daldo|chahiye|de do|dedo|mangwa do|mangwa|order karo|order kar|le lo|lelo|karo|kar|do|mujhe|mere liye|cart|me|mein|aur|and|please|plz|\d+|ek|teen|char|paanch|panch|one|two|three|four|five|half|aadha|adha|full|pura|poora)\b/g,' ').replace(/\s+/g,' ').trim();
-  if(cleaned.length < 3) return null;
-  const item = zaraFindItem(cleaned);
-  if(!item) return {miss:cleaned};
-  const wantHalf = /\b(half|aadha|adha)\b/.test(q) && item.priceHalf;
-  return {item, qty, half: wantHalf};
+  if(!ZARA_ORDER_VERBS.test(q)) return null;
+  // Multi-item: "2 momos aur 1 pizza" — split on aur/and/comma/plus
+  const parts = q.split(/\s+aur\s+|\s+and\s+|,|\s\+\s/).map(s=>s.trim()).filter(Boolean);
+  const results = [];
+  const misses = [];
+  parts.forEach(part=>{
+    // qty nikaalo (digit ya shabd)
+    let qty = 1;
+    const num = part.match(/\b(\d+)\b/);
+    const words = {ek:1,do:2,teen:3,char:4,paanch:5,panch:5,one:1,two:2,three:3,four:4,five:5};
+    if(num) qty = Math.min(parseInt(num[1]), 20);
+    else { for(const w in words){ if(new RegExp('\\b'+w+'\\b').test(part)){ qty = words[w]; break; } } }
+    // item ka naam nikaalo (command words hata ke)
+    const cleaned = part.replace(/\b(add|daal do|daal|dal do|daldo|chahiye|de do|dedo|de dena|dena|dila do|dila|bhej do|bhej|bhijwa do|bhijwa|mangwa do|mangwa|mangao|manga|order karo|order kar|le lo|lelo|lena hai|lena|leni|khana hai|khana|khani|kha|bana do|banao|bhaiya|bhaiyya|didi|i want|want|send|get me|lao|la do|lado|karo|kar|do|hai|mujhe|mere liye|cart|me|mein|please|plz|jaldi|abhi|\d+|ek|teen|char|paanch|panch|one|two|three|four|five|half|aadha|adha|full|pura|poora)\b/g,' ').replace(/\s+/g,' ').trim();
+    if(cleaned.length < 3) return;
+    const item = zaraFindItem(cleaned);
+    if(!item){ misses.push(cleaned); return; }
+    const wantHalf = /\b(half|aadha|adha)\b/.test(part) && item.priceHalf;
+    results.push({item, qty, half: wantHalf});
+  });
+  if(!results.length && !misses.length) return null;
+  if(!results.length) return {miss: misses.join(', ')};
+  return {items: results, misses};
 }
 
 function zaraUpsell(addedItem){
@@ -3064,22 +3075,26 @@ async function sendZara(){
 
   // 2) Cart command — "2 veg momos add karo"
   const cmd = zaraCartCommand(text);
-  if(cmd){
-    if(cmd.miss){
-      addZaraMsg('bot', `"${cmd.miss}" naam ki dish nahi mili 🤔 — search bar me dekh lo, ya bolo "popular kya hai?"`);
-      return;
-    }
-    const key = cmd.half ? cmd.item.id + '_h' : cmd.item.id;
-    const unit = cmd.half ? cmd.item.priceHalf : cmd.item.price;
-    changeQty(key, cmd.qty);
-    const varLabel = cmd.item.priceHalf ? (cmd.half ? ' (Half)' : ' (Full)') : '';
-    let reply = `Ho gaya! ✅ ${cmd.qty} × ${cmd.item.name}${varLabel} (₹${unit * cmd.qty}) cart me daal diya. 🛒`;
-    const up = zaraUpsell(cmd.item);
+  if(cmd && cmd.items){
+    const lines = [];
+    let lastItem = null;
+    cmd.items.forEach(c=>{
+      const key = c.half ? c.item.id + '_h' : c.item.id;
+      const unit = c.half ? c.item.priceHalf : c.item.price;
+      changeQty(key, c.qty);
+      const varLabel = c.item.priceHalf ? (c.half ? ' (Half)' : ' (Full)') : '';
+      lines.push(`${c.qty} × ${c.item.name}${varLabel} (₹${unit * c.qty})`);
+      lastItem = c.item;
+    });
+    let reply = `Ho gaya! ✅ ${lines.join(' + ')} cart me daal diya. 🛒`;
+    if(cmd.misses && cmd.misses.length) reply += `\n("${cmd.misses.join(', ')}" menu me nahi mila 🙏)`;
+    const up = zaraUpsell(lastItem);
     if(up) reply += `\n\nIske saath ${up.name} (₹${up.price}) loge? Bolo "add ${up.name}" 😋`;
     renderZaraChips(['🛒 Cart kholo', up?`add ${up.name}`:'🥟 Popular dishes']);
     addZaraMsg('bot', reply);
     return;
   }
+  // cmd.miss (kuch nahi mila) — AI ko samajhne do, dead-end mat do
 
   // 3) Order status
   const st = zaraOrderStatus(text);
@@ -3128,6 +3143,43 @@ function zaraLocal(qRaw){
   return `Main dish suggest kar sakti hoon, cart me add kar sakti hoon (bolo "2 momos add karo"), order status bata sakti hoon, aur party orders me help kar sakti hoon. Kya chahiye? 🙂`;
 }
 
+// AI ke reply me hidden action tags execute karo: [[ADD: 2 x Veg Momos | half]], [[STATUS]], [[PARTY]]
+function zaraExecuteActions(reply, userText){
+  let added = [];
+  let lastItem = null;
+  reply = reply.replace(/\[\[\s*ADD\s*:\s*(\d+)\s*[x×]\s*([^\]|]+?)\s*(\|\s*half\s*)?\]\]/gi, (m, qtyStr, name, halfFlag)=>{
+    const item = zaraFindItem(name.trim());
+    if(!item) return '';
+    const qty = Math.min(parseInt(qtyStr)||1, 20);
+    const half = !!halfFlag && item.priceHalf;
+    const key = half ? item.id + '_h' : item.id;
+    const unit = half ? item.priceHalf : item.price;
+    changeQty(key, qty);
+    const varLabel = item.priceHalf ? (half ? ' (Half)' : ' (Full)') : '';
+    added.push(`${qty} × ${item.name}${varLabel} (₹${unit*qty})`);
+    lastItem = item;
+    return '';
+  });
+  let hasStatus = false, hasParty = false;
+  reply = reply.replace(/\[\[\s*STATUS\s*\]\]/gi, ()=>{ hasStatus = true; return ''; });
+  reply = reply.replace(/\[\[\s*PARTY\s*\]\]/gi, ()=>{ hasParty = true; return ''; });
+  reply = reply.replace(/\n{3,}/g,'\n\n').trim();
+  if(added.length){
+    reply += (reply?'\n\n':'') + `✅ ${added.join(' + ')} cart me daal diya! 🛒`;
+    const up = lastItem ? zaraUpsell(lastItem) : null;
+    renderZaraChips(['🛒 Cart kholo', up?`add ${up.name}`:'🥟 Popular dishes']);
+  }
+  if(hasStatus){
+    const st = zaraOrderStatus('order status ' + (userText||''));
+    if(st) reply += (reply?'\n\n':'') + st.replace(/\*\*/g,'');
+  }
+  if(hasParty && !zaraLead){
+    zaraLead = {step:'name'};
+    reply += (reply?'\n\n':'') + `Party/bulk order ke liye apna naam bata dijiye, phir number — hum khud sampark karenge. 🎉`;
+  }
+  return reply || 'Ho gaya! ✅';
+}
+
 // Full AI via your Cloudflare Worker (used only when ZARA_API_URL is set)
 async function zaraAI(text){
   zaraHistory.push({role:'user', content:text});
@@ -3138,10 +3190,11 @@ async function zaraAI(text){
       body: JSON.stringify({ model:'llama-3.3-70b-versatile', messages: [{role:'system', content: zaraSystemPrompt()}, ...zaraHistory.slice(-8)] })
     });
     const data = await res.json();
-    const reply = data.reply || data.content
+    let reply = data.reply || data.content
       || (data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content)
       || 'Sorry, main abhi jawab nahi de paayi. Thodi der baad try karo. 🙏';
     zaraHistory.push({role:'assistant', content:reply});
+    reply = zaraExecuteActions(reply, text);
     return reply;
   }catch(err){ return zaraLocal(text); }
 }
