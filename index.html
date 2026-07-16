@@ -731,6 +731,8 @@
   .kds-next{background:var(--teal); color:#fff; border:none; border-radius:10px; padding:12px; font-size:14px; font-weight:800; cursor:pointer;}
   .join-rider-foot{display:block; width:100%; max-width:360px; margin:0 auto 16px; background:linear-gradient(135deg,#1f6b5e,#2563ab); color:#fff; border:none; border-radius:14px; padding:14px 20px; font-size:16px; font-weight:800; cursor:pointer; box-shadow:0 4px 14px rgba(31,107,94,.3);}
   .join-rider-foot:hover{filter:brightness(1.08);}
+  .btn.pay-now{display:block; text-align:center; text-decoration:none; background:linear-gradient(135deg,#5f259f,#00baf2); color:#fff; border:none;}
+  .btn.pay-now:hover{filter:brightness(1.06);}
 </style>
 </head>
 <body>
@@ -984,8 +986,9 @@
       <p style="font-weight:700;color:var(--maroon);font-size:20px;">₹<span id="payAmt2">0</span></p>
       <p style="font-size:13px;color:#8a7a63;">Scan this QR with any UPI app (GPay / PhonePe / Paytm) to pay</p>
     </div>
+    <a class="btn pay-now" id="payNowBtn" href="#" onclick="payNowTapped()">📲 Pay Now — apna UPI app kholein</a>
+    <p style="font-size:12px;color:#8a7a63;text-align:center;margin:-2px 0 10px;">Mobile par tap karte hi PhonePe / Paytm / GPay khul jaayega, amount bhara hua. Laptop par upar QR scan karein.</p>
     <button class="btn gold" onclick="confirmOnWhatsapp()">✅ I've Paid — Send Order on WhatsApp</button>
-    <button class="btn outline" onclick="closeSheet('payOverlay')">Pay Later / Cash on Delivery</button>
   </div>
 </div>
 
@@ -1328,8 +1331,7 @@ const SHEET_URL = "https://script.google.com/macros/s/AKfycbxHjSqOAv80v8sRE-nGxZ
 async function loadProductsFromSheet(){
   if(!SHEET_URL) return;
   try{
-    const res  = await fetch(SHEET_URL);
-    const data = await res.json();
+    const data = await jsonpGet({});
     if(data && data.ok && Array.isArray(data.products) && data.products.length){
       data.products.forEach(p=>{
         if(!p.name) return;
@@ -1356,6 +1358,23 @@ async function loadProductsFromSheet(){
 }
 
 // Fire-and-forget write to the sheet (new product or new order).
+/* CORS-safe GET — Apps Script se data laane ke liye JSONP use karte hain
+   (custom domain par normal fetch GET ko CORS block kar deta hai) */
+function jsonpGet(params){
+  return new Promise((resolve, reject)=>{
+    const cb = 'bnwcb_' + Math.random().toString(36).slice(2);
+    const q = new URLSearchParams(Object.assign({callback: cb}, params)).toString();
+    const s = document.createElement('script');
+    let done = false;
+    window[cb] = (data)=>{ done=true; resolve(data); cleanup(); };
+    function cleanup(){ delete window[cb]; if(s.parentNode) s.parentNode.removeChild(s); }
+    s.onerror = ()=>{ if(!done){ cleanup(); reject(new Error('jsonp failed')); } };
+    s.src = SHEET_URL + '?' + q;
+    document.head.appendChild(s);
+    setTimeout(()=>{ if(!done){ cleanup(); reject(new Error('timeout')); } }, 15000);
+  });
+}
+
 function sheetPost(payload){
   if(!SHEET_URL) return;
   try{
@@ -1514,8 +1533,7 @@ let ordersLoadedOnce = false;
 async function loadOrdersFromSheet(){
   if(!SHEET_URL) return;
   try{
-    const res = await fetch(SHEET_URL + '?get=orders');
-    const data = await res.json();
+    const data = await jsonpGet({get:'orders'});
     if(data && data.ok && Array.isArray(data.orders)){
       // Local (abhi-abhi place hue, Sheet me pahunchne baaki) orders ko upar rakho
       const local = ORDERS.filter(o => !data.orders.some(s => String(s.orderId)===String(o.orderId)));
@@ -2120,9 +2138,28 @@ function placeOrder(){
   document.getElementById('payAmt2').textContent = total;
   const upiString = `upi://pay?pa=${encodeURIComponent(CONFIG.upiId)}&pn=${encodeURIComponent(CONFIG.restaurantName)}&am=${total}&cu=INR&tn=Order${orderId}`;
   const qrEl = document.getElementById('qrImg');
+  const payBtn = document.getElementById('payNowBtn');
+  if(payBtn) payBtn.href = upiString;   // mobile par tap → UPI app khulega
   qrEl.onerror = ()=>{ qrEl.onerror = null; qrEl.src = PAY_QR_DATA; }; // net/QR service fail → apna embedded QR
   qrEl.src = `https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(upiString)}`;
   document.getElementById('payOverlay').classList.add('show');
+}
+
+let payReturnArmed = false;
+function payNowTapped(){
+  payReturnArmed = true;
+  const onBack = ()=>{
+    if(document.visibilityState !== 'visible' || !payReturnArmed) return;
+    payReturnArmed = false;
+    document.removeEventListener('visibilitychange', onBack);
+    setTimeout(()=>{
+      if(!currentOrder) return;
+      if(confirm("Payment ho gaya? \u2705\n\nOK dabate hi aapka order WhatsApp par bhej diya jaayega.")){
+        confirmOnWhatsapp();
+      }
+    }, 600);
+  };
+  document.addEventListener('visibilitychange', onBack);
 }
 
 function confirmOnWhatsapp(){
@@ -2172,8 +2209,7 @@ function renderTrackSteps(stepIndex){
 async function pollTrackStatus(){
   if(!SHEET_URL || !trackOrderId) return;
   try{
-    const res = await fetch(SHEET_URL + '?get=orders');
-    const data = await res.json();
+    const data = await jsonpGet({get:'orders'});
     if(data && data.ok && Array.isArray(data.orders)){
       const o = data.orders.find(x=>String(x.orderId)===String(trackOrderId));
       if(o){
@@ -2310,8 +2346,7 @@ async function loadRatings(){
   if(el) el.innerHTML = gBadge;
   if(!SHEET_URL) return;
   try{
-    const res = await fetch(SHEET_URL + '?get=ratings');
-    const data = await res.json();
+    const data = await jsonpGet({get:'ratings'});
     if(!el || !data || !data.ok || !data.count) return;
     const stars = '★'.repeat(Math.round(data.avg)) + '☆'.repeat(5-Math.round(data.avg));
     const quotes = (data.latest||[]).filter(r=>r.comment).slice(0,3)
@@ -2353,9 +2388,7 @@ async function sha256(text){
   return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
 }
 async function authCall(params){
-  const url = SHEET_URL + '?' + new URLSearchParams(Object.assign({secret: CONFIG.adminSecret}, params)).toString();
-  const res = await fetch(url);
-  return await res.json();
+  return await jsonpGet(Object.assign({secret: CONFIG.adminSecret}, params));
 }
 function adminMsg(t,c){ const el=document.getElementById('adminMsg'); if(el){ el.textContent=t; el.style.color=c||'#8a7a63'; } }
 
