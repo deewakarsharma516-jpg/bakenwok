@@ -903,6 +903,7 @@
       <div class="zname">Zara</div>
       <div class="zsub" data-i18n="zara_sub">Bake 'N' Wok assistant</div>
     </div>
+    <button class="zclose" id="zaraVoiceBtn" onclick="toggleZaraVoice()" title="Zara ki awaaz on/off" style="margin-right:6px;">🔊</button>
     <button class="zclose" onclick="closeZara()">×</button>
   </div>
   <div class="zara-msgs" id="zaraMsgs"></div>
@@ -975,7 +976,6 @@
 <div class="overlay" id="cartOverlay">
   <div class="sheet">
     <h2><span data-i18n="cart_title">Your Cart</span> <button class="close" onclick="closeSheet('cartOverlay')">×</button></h2>
-    <div id="cartShopClosedNotice"></div>
     <div id="cartLines"></div>
     <div id="cartEmpty" style="text-align:center;padding:30px 0;color:#8a7a63;" data-i18n="cart_empty">Cart is empty. Go add something tasty!</div>
     <div id="billBox"></div>
@@ -1357,11 +1357,24 @@ async function bookDelivery(partnerKey, orderId, dropAddress, dropPhone){
    ============================================================ */
 const SHEET_URL = "https://script.google.com/macros/s/AKfycbxHjSqOAv80v8sRE-nGxZRbzobejoRW_GDcPkn71x1u4b7ep39Rpk38wK0IcvhEphBI/exec";
 
+/* Admin toggle ko Google Sheet me save karo — har device par, refresh ke baad bhi same rahega */
+function saveSetting(key, value){
+  sheetPost({action:'setSetting', key:key, value: value ? 'TRUE' : 'FALSE'});
+}
+function applyServerSettings(st){
+  if(!st) return;
+  if(st.shopOpen !== undefined) setShopOpen(st.shopOpen !== 'FALSE', true);
+  if(st.deliveryAvailable !== undefined) setDeliveryAvailability(st.deliveryAvailable !== 'FALSE', true);
+  if(st.tokenEnabled !== undefined) setTokenEnabled(st.tokenEnabled !== 'FALSE', true);
+  if(st.happyHour !== undefined) setHappy(st.happyHour === 'TRUE', true);
+}
+
 // Read products from the sheet and ADD them to the menu (built-in items stay).
 async function loadProductsFromSheet(){
   if(!SHEET_URL) return;
   try{
     const data = await jsonpGet({});
+    if(data && data.settings) applyServerSettings(data.settings);
     if(data && data.ok && Array.isArray(data.products) && data.products.length){
       data.products.forEach(p=>{
         if(!p.name) return;
@@ -1410,7 +1423,7 @@ function sheetPost(payload){
   try{
     const body = Object.assign({}, payload);
     // Admin actions ke saath secret bhejo (Apps Script isko check karta hai)
-    if(['addProduct','updateStatus','deleteProduct'].indexOf(body.action) !== -1){
+    if(['addProduct','updateStatus','deleteProduct','setSetting'].indexOf(body.action) !== -1){
       body.secret = CONFIG.adminSecret;
     }
     fetch(SHEET_URL, {
@@ -1653,8 +1666,9 @@ function updateDeliveryStatusUI(){
   }
 }
 
-function setShopOpen(open){
+function setShopOpen(open, skipSave){
   CONFIG.shopOpen = open;
+  if(!skipSave) saveSetting('shopOpen', open);
   const on = document.getElementById('btnShopOpen'), off = document.getElementById('btnShopClosed');
   if(on && off){
     on.style.background = open ? 'var(--teal)' : '#ecd9ad';
@@ -1666,8 +1680,9 @@ function setShopOpen(open){
 }
 
 /* ---------- DAILY TOKEN SYSTEM 🎫 ---------- */
-function setTokenEnabled(on){
+function setTokenEnabled(on, skipSave){
   CONFIG.tokenEnabled = on;
+  if(!skipSave) saveSetting('tokenEnabled', on);
   const y = document.getElementById('btnTokenOn'), n = document.getElementById('btnTokenOff');
   if(y && n){
     y.style.background = on ? 'var(--teal)' : '#ecd9ad';
@@ -1684,8 +1699,9 @@ function nextToken(){
   return todayCount + 1;
 }
 
-function setDeliveryAvailability(available){
+function setDeliveryAvailability(available, skipSave){
   CONFIG.deliveryAvailable = available;
+  if(!skipSave) saveSetting('deliveryAvailable', available);
   document.getElementById('btnDeliveryOn').style.background = available ? 'var(--teal)' : '#ecd9ad';
   document.getElementById('btnDeliveryOn').style.color = available ? '#fff' : 'var(--maroon)';
   document.getElementById('btnDeliveryOff').style.background = available ? '#ecd9ad' : 'var(--nonveg)';
@@ -1787,6 +1803,10 @@ function closeVariant(){
 }
 
 function changeQty(id, delta){
+  if(delta > 0 && !CONFIG.shopOpen){
+    alert("Sorry, hum abhi band hain — order nahi le sakte. Baad me aana! 🙏");
+    return;
+  }
   cart[id] = (cart[id]||0) + delta;
   if(cart[id]<=0) delete cart[id];
   renderMenu();
@@ -2028,8 +2048,9 @@ function renderHappyBanner(){
   el.innerHTML = `<div class="happy-banner">⏰ <b>${esc(HAPPY.text)}</b> — sirf ${Math.floor(mins/60)}h ${mins%60}m aur!</div>`;
 }
 setInterval(renderHappyBanner, 30000);
-function setHappy(on){
+function setHappy(on, skipSave){
   HAPPY.active = on;
+  if(!skipSave) saveSetting('happyHour', on);
   const y=document.getElementById('btnHappyOn'), n=document.getElementById('btnHappyOff');
   if(y&&n){ y.style.background=on?'var(--teal)':'#ecd9ad'; y.style.color=on?'#fff':'var(--maroon)';
     n.style.background=on?'#ecd9ad':'var(--nonveg)'; n.style.color=on?'var(--maroon)':'#fff'; }
@@ -2073,26 +2094,7 @@ function openCart(){
   const lines = document.getElementById('cartLines');
   const items = cartItemsList();
   document.getElementById('cartEmpty').style.display = items.length? 'none':'block';
-  const checkoutBtn = document.getElementById('checkoutBtn');
-  const noticeBox = document.getElementById('cartShopClosedNotice');
-  if(noticeBox){
-    noticeBox.innerHTML = !CONFIG.shopOpen
-      ? `<div class="delivery-status off" style="margin-bottom:10px;">🔴 ${t('shop_closed_msg')}</div>`
-      : '';
-  }
-  if(!items.length){
-    checkoutBtn.style.display = 'none';
-  } else if(!CONFIG.shopOpen){
-    checkoutBtn.style.display = 'block';
-    checkoutBtn.disabled = true;
-    checkoutBtn.style.opacity = .5;
-    checkoutBtn.style.cursor = 'not-allowed';
-  } else {
-    checkoutBtn.style.display = 'block';
-    checkoutBtn.disabled = false;
-    checkoutBtn.style.opacity = 1;
-    checkoutBtn.style.cursor = 'pointer';
-  }
+  document.getElementById('checkoutBtn').style.display = items.length? 'block':'none';
   lines.innerHTML = items.map(i=>`
     <div class="cart-line">
       <div class="nm">${i.name} × ${i.qty}</div>
@@ -2125,7 +2127,6 @@ function closeSheet(id){
 }
 
 function openCheckout(){
-  if(!CONFIG.shopOpen){ alert(t('shop_closed_msg')); return; }
   closeSheet('cartOverlay');
   const total = renderBill('billBox2');
   document.getElementById('payAmt').textContent = total;
@@ -2896,7 +2897,19 @@ function initHeroVideo(){
    ORDER NOTIFICATION SOUND
    ============================================================ */
 let orderSoundOn = false;
+try{ orderSoundOn = localStorage.getItem('bnw_sound') === '1'; }catch(e){}
 let lastOrderCount = 0;
+// Refresh ke baad browser awaaz tabhi bajne deta hai jab user ek baar click/touch kare —
+// isliye pehli click par audio chupchap unlock kar lete hain
+document.addEventListener('click', function unlockAudioOnce(){
+  document.removeEventListener('click', unlockAudioOnce);
+  if(!orderSoundOn) return;
+  try{
+    _audioCtx = _audioCtx || new (window.AudioContext||window.webkitAudioContext)();
+    if(_audioCtx.state === 'suspended') _audioCtx.resume();
+    if('speechSynthesis' in window){ const u = new SpeechSynthesisUtterance(' '); u.volume = 0; window.speechSynthesis.speak(u); }
+  }catch(e){}
+}, {passive:true});
 let _audioCtx = null;
 function playBeep(){
   try{
@@ -2914,8 +2927,9 @@ function playBeep(){
     });
   }catch(e){ /* audio not available */ }
 }
-function setOrderSound(on){
+function setOrderSound(on, skipConfirm){
   orderSoundOn = on;
+  try{ localStorage.setItem('bnw_sound', on ? '1' : '0'); }catch(e){}
   const yes = document.getElementById('btnSoundOn'), no = document.getElementById('btnSoundOff');
   if(yes && no){
     yes.style.background = on ? 'var(--teal)' : '#ecd9ad';
@@ -2923,13 +2937,54 @@ function setOrderSound(on){
     no.style.background = on ? '#ecd9ad' : 'var(--nonveg)';
     no.style.color = on ? 'var(--maroon)' : '#fff';
   }
-  if(on) playBeep(); // unlock audio + confirm
+  if(on && !skipConfirm){ playBeep(); zaraSpeak('ऑर्डर अलर्ट चालू! नया ऑर्डर आते ही मैं बोल कर बताऊंगी।'); } // unlock audio + confirm
 }
-// Beep when the order list grows (works when admin panel stays open)
+/* Zara ki awaaz — naya order bol kar batati hai (browser ki built-in Hindi voice, free) */
+function zaraSpeak(text){
+  try{
+    if(!('speechSynthesis' in window)) return;
+    window.speechSynthesis.cancel();  // pichla bolna rok do, naya shuru karo
+    const u = new SpeechSynthesisUtterance(text);
+    u.lang = 'hi-IN';
+    u.rate = 0.95; u.pitch = 1.1; u.volume = 1;
+    // Hindi voice dhundo (Google हिन्दी / Microsoft Swara / koi bhi hi-IN)
+    const pick = ()=>{
+      const vs = window.speechSynthesis.getVoices();
+      const v = vs.find(x=>x.lang==='hi-IN' && /google/i.test(x.name))
+             || vs.find(x=>x.lang==='hi-IN')
+             || vs.find(x=>x.lang && x.lang.indexOf('hi')===0);
+      if(v) u.voice = v;
+      window.speechSynthesis.speak(u);
+    };
+    if(window.speechSynthesis.getVoices().length) pick();
+    else window.speechSynthesis.onvoiceschanged = ()=>{ window.speechSynthesis.onvoiceschanged=null; pick(); };
+  }catch(e){ /* voice not available */ }
+}
+function announceOrder(o){
+  if(!o) return;
+  let msg = 'नया ऑर्डर आया!';
+  if(o.name) msg += ' ' + o.name + ' जी का,';
+  if(o.token) msg += ' टोकन नंबर ' + o.token + ',';
+  if(o.total) msg += ' टोटल ' + o.total + ' रुपये,';
+  if(o.mode) msg += ' ' + (String(o.mode).toLowerCase().indexOf('pick')!==-1 ? 'पिकअप' : 'डिलीवरी');
+  zaraSpeak(msg);
+}
+// Beep + Zara ki awaaz jab naya order aaye (admin panel khula ho)
 function checkNewOrders(){
-  if(orderSoundOn && ORDERS.length > lastOrderCount) playBeep();
+  if(orderSoundOn && ORDERS.length > lastOrderCount){
+    playBeep();
+    // jitne naye orders aaye (max 3) — sabko bol kar batao; ORDERS[0] sabse naya hai
+    const fresh = Math.min(ORDERS.length - lastOrderCount, 3);
+    for(let i = fresh - 1; i >= 0; i--){
+      const o = ORDERS[i];
+      setTimeout(()=>announceOrder(o), 600 + (fresh - 1 - i) * 4000);
+    }
+  }
   lastOrderCount = ORDERS.length;
 }
+// Page load par saved sound setting button par bhi dikhao (bina beep/awaaz ke)
+setTimeout(()=>{ try{ setOrderSound(orderSoundOn, true); }catch(e){} }, 300);
+setTimeout(()=>{ try{ const b=document.getElementById('zaraVoiceBtn'); if(b) b.textContent = zaraVoiceOn ? '🔊' : '🔇'; }catch(e){} }, 300);
 
 /* ============================================================
    To make Zara fully AI-powered, paste your Cloudflare Worker
@@ -2948,6 +3003,7 @@ function zaraSystemPrompt(){
   return `You are Zara, the friendly ordering assistant for "${CONFIG.restaurantName}", a 100% pure-veg cloud kitchen in Faridabad, Haryana. `
     + `Reply in warm Hinglish, keep answers short (1-3 sentences). Help customers choose dishes and answer about menu, delivery and payment. `
     + `Free-delivery service has NOT started yet: after order confirmation the customer books their own rider (Porter/Borzo/Swiggy Genie) from the app's Book a Rider section and pays the rider charge themselves; Pickup is also available. All food is pure veg. `
+    + (CONFIG.shopOpen ? '' : `IMPORTANT: The shop is currently CLOSED. Politely tell customers we cannot take orders right now and NEVER output any ADD tag. `)
     + `Today's menu: ${menuList}. `
     + `IMPORTANT ORDERING RULE: You can add items to the customer's cart yourself. Whenever the customer expresses ANY intent to order/eat/get a dish (in any words, any language, any spelling — e.g. "bhaiya 2 momos bhej do", "paneer roll khana hai", "ek pizza de dena", "i want chowmein"), reply with a short friendly confirmation AND include one hidden action tag per item on its own line in this exact format: [[ADD: <qty> x <exact dish name from menu> | half]] (write "| half" only if they asked for half portion, otherwise omit it). Example: [[ADD: 2 x Veg Momos]]. Use ONLY exact dish names from the menu above. If their request roughly matches a menu dish, pick the closest one. If nothing on the menu matches, suggest 2-3 similar dishes instead and do NOT output any tag. `
     + `If the customer asks their order status, include the tag [[STATUS]]. If they mention party/bulk/catering/event order, include the tag [[PARTY]]. `
@@ -2968,6 +3024,31 @@ function closeZara(){
   document.getElementById('zaraPanel').classList.remove('show');
   document.getElementById('zaraFab').style.display = '';
 }
+/* Zara apne jawab bol kar bhi sunati hai — customer 🔊 button se on/off kar sakta hai */
+let zaraVoiceOn = true;
+try{ zaraVoiceOn = localStorage.getItem('bnw_zara_voice') !== '0'; }catch(e){}
+function toggleZaraVoice(){
+  zaraVoiceOn = !zaraVoiceOn;
+  try{ localStorage.setItem('bnw_zara_voice', zaraVoiceOn ? '1' : '0'); }catch(e){}
+  const b = document.getElementById('zaraVoiceBtn');
+  if(b) b.textContent = zaraVoiceOn ? '🔊' : '🔇';
+  if(!zaraVoiceOn && 'speechSynthesis' in window) window.speechSynthesis.cancel();
+  if(zaraVoiceOn) zaraSpeak('आवाज़ चालू!');
+}
+function zaraSpeakReply(text){
+  if(!zaraVoiceOn) return;
+  // Bolne layak saaf text: emoji, symbols, ₹, tags, bullets hatao
+  let t = String(text)
+    .replace(/\[\[[^\]]*\]\]/g,' ')
+    .replace(/[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}\u{FE0F}\u{2190}-\u{21FF}]/gu,' ')
+    .replace(/₹\s*(\d+)/g,'$1 rupaye')
+    .replace(/[•*_#>|]/g,' ')
+    .replace(/\bx\b/gi,' ')
+    .replace(/\s+/g,' ').trim();
+  if(!t) return;
+  if(t.length > 220) t = t.slice(0, 220) + '…';  // bahut lamba jawab poora mat bolo
+  zaraSpeak(t);
+}
 function addZaraMsg(who, text){
   const box = document.getElementById('zaraMsgs');
   const d = document.createElement('div');
@@ -2975,6 +3056,7 @@ function addZaraMsg(who, text){
   d.textContent = text;
   box.appendChild(d);
   box.scrollTop = box.scrollHeight;
+  if(who === 'bot') zaraSpeakReply(text);
   return d;
 }
 function renderZaraChips(chips){
@@ -3136,6 +3218,10 @@ async function sendZara(){
 
   // 2) Cart command — "2 veg momos add karo" / "दो मोमोज ऐड करो"
   const cmd = zaraCartCommand(textH);
+  if(cmd && cmd.items && !CONFIG.shopOpen){
+    addZaraMsg('bot', `Sorry, hum abhi band hain 🙏 — isliye order nahi le sakti. Jaise hi shop khulegi, sabse pehle aapka order lungi! 🙂`);
+    return;
+  }
   if(cmd && cmd.items){
     const lines = [];
     let lastItem = null;
@@ -3215,6 +3301,10 @@ function zaraLocal(qRaw){
 
 // AI ke reply me hidden action tags execute karo: [[ADD: 2 x Veg Momos | half]], [[STATUS]], [[PARTY]]
 function zaraExecuteActions(reply, userText){
+  if(!CONFIG.shopOpen){
+    reply = reply.replace(/\[\[\s*ADD\s*:[^\]]*\]\]/gi,'').replace(/\n{3,}/g,'\n\n').trim();
+    return (reply ? reply + '\n\n' : '') + 'Waise abhi hum band hain 🙏 — shop khulte hi order le lungi!';
+  }
   let added = [];
   let lastItem = null;
   reply = reply.replace(/\[\[\s*ADD\s*:\s*(\d+)\s*[x×]\s*([^\]|]+?)\s*(\|\s*half\s*)?\]\]/gi, (m, qtyStr, name, halfFlag)=>{
@@ -3687,11 +3777,11 @@ const LANGUAGES = [
 ];
 
 const I18N = {
-en:{ hero_tag:"Where Sweetness Meets Spice", veg_badge:"🌿 100% Pure Veg", hero_sub:"Fresh momos, sizzling wok food, cheesy pizzas & more — ordered online, delivered hot.", mode_delivery:"Delivery", mode_pickup:"Pickup", rider_cta:"Book a Delivery Rider — compare rates (Porter · Borzo)", share_app:"Share the App", promo_title:"Everyday Value", promo_sub:"100% Pure Veg · Fresh & Hot, made fresh when you order", search_ph:"🔍 Search dishes — momos, pizza, cold drink…", items_added:"items added", view_cart:"View Cart", foot_tag:"Where Sweetness Meets Spice · 100% Pure Veg", join_rider:"Become a Delivery Partner", foot_home:"Home", foot_about:"About Us", foot_contact:"Contact", foot_privacy:"Privacy Policy", foot_terms:"Terms & Conditions", foot_refund:"Refund & Cancellation", foot_delivery:"Delivery Policy", foot_rider:"Book a Rider", foot_scanpay:"Scan & Pay", foot_rateus:"Rate Us", foot_myorders:"My Orders", foot_rights:"All rights reserved.", cart_title:"Your Cart", cart_empty:"Cart is empty. Go add something tasty!", proceed_checkout:"Proceed to Checkout", delivery_details:"Delivery Details", label_fullname:"Full Name", ph_fullname:"e.g. Rohit Sharma", label_phone:"Phone Number", ph_phone:"10-digit mobile number", label_address:"Delivery Address", ph_address:"House no, street, landmark, area", label_notes:"Order Notes (optional)", ph_notes:"e.g. less spicy, no onion", ph_coupon:"🎟️ Coupon code (e.g. WELCOME50)", apply_btn:"Apply", place_order:"Place Order & Pay", scan_pay:"Scan & Pay", scan_hint:"Scan this QR with any UPI app (GPay / PhonePe / Paytm) to pay", pay_now:"Pay Now — open your UPI app", pay_now_hint:"On mobile, tapping this opens PhonePe / Paytm / GPay with the amount filled in. On laptop, scan the QR above.", ive_paid:"I've Paid — Send Order on WhatsApp", track_title:"Track Order", track_minleft:"MIN LEFT", track_call:"Call Restaurant", track_whatsapp:"Chat on WhatsApp", track_back:"Back to Menu", rate_title:"Rate Bake 'N' Wok", rate_comment_ph:"How was the food? (optional)", rate_google:"Please review us on Google too — it really helps us 🙏", rate_submit:"Submit ✓", variant_done:"Done ✓", zara_nudge:"👋 Need help? I'm Zara — I can suggest dishes and even add them to your cart!", zara_ask:"Ask Zara", zara_sub:"Bake 'N' Wok assistant", zara_input_ph:"Type or 🎤 tap to speak…", add_btn:"ADD", half:"Half", full:"Full", out_of_stock:"Out of stock", no_results:"— no dish found for this. Try another name. 🍽️", add_to_cart:"Add to Cart", subtotal:"Subtotal", coupon:"Coupon", happy_hours:"Happy Hours", loyalty_points:"Loyalty points", delivery_charge:"Delivery Charge", pickup_nocharge:"Pickup (no delivery charge)", to_pay:"To Pay", shop_closed_msg:"We're closed right now — new orders can't be placed. Please try again later 🙏" },
+en:{ hero_tag:"Where Sweetness Meets Spice", veg_badge:"🌿 100% Pure Veg", hero_sub:"Fresh momos, sizzling wok food, cheesy pizzas & more — ordered online, delivered hot.", mode_delivery:"Delivery", mode_pickup:"Pickup", rider_cta:"Book a Delivery Rider — compare rates (Porter · Borzo)", share_app:"Share the App", promo_title:"Everyday Value", promo_sub:"100% Pure Veg · Fresh & Hot, made fresh when you order", search_ph:"🔍 Search dishes — momos, pizza, cold drink…", items_added:"items added", view_cart:"View Cart", foot_tag:"Where Sweetness Meets Spice · 100% Pure Veg", join_rider:"Become a Delivery Partner", foot_home:"Home", foot_about:"About Us", foot_contact:"Contact", foot_privacy:"Privacy Policy", foot_terms:"Terms & Conditions", foot_refund:"Refund & Cancellation", foot_delivery:"Delivery Policy", foot_rider:"Book a Rider", foot_scanpay:"Scan & Pay", foot_rateus:"Rate Us", foot_myorders:"My Orders", foot_rights:"All rights reserved.", cart_title:"Your Cart", cart_empty:"Cart is empty. Go add something tasty!", proceed_checkout:"Proceed to Checkout", delivery_details:"Delivery Details", label_fullname:"Full Name", ph_fullname:"e.g. Rohit Sharma", label_phone:"Phone Number", ph_phone:"10-digit mobile number", label_address:"Delivery Address", ph_address:"House no, street, landmark, area", label_notes:"Order Notes (optional)", ph_notes:"e.g. less spicy, no onion", ph_coupon:"🎟️ Coupon code (e.g. WELCOME50)", apply_btn:"Apply", place_order:"Place Order & Pay", scan_pay:"Scan & Pay", scan_hint:"Scan this QR with any UPI app (GPay / PhonePe / Paytm) to pay", pay_now:"Pay Now — open your UPI app", pay_now_hint:"On mobile, tapping this opens PhonePe / Paytm / GPay with the amount filled in. On laptop, scan the QR above.", ive_paid:"I've Paid — Send Order on WhatsApp", track_title:"Track Order", track_minleft:"MIN LEFT", track_call:"Call Restaurant", track_whatsapp:"Chat on WhatsApp", track_back:"Back to Menu", rate_title:"Rate Bake 'N' Wok", rate_comment_ph:"How was the food? (optional)", rate_google:"Please review us on Google too — it really helps us 🙏", rate_submit:"Submit ✓", variant_done:"Done ✓", zara_nudge:"👋 Need help? I'm Zara — I can suggest dishes and even add them to your cart!", zara_ask:"Ask Zara", zara_sub:"Bake 'N' Wok assistant", zara_input_ph:"Type or 🎤 tap to speak…", add_btn:"ADD", half:"Half", full:"Full", out_of_stock:"Out of stock", no_results:"— no dish found for this. Try another name. 🍽️", add_to_cart:"Add to Cart", subtotal:"Subtotal", coupon:"Coupon", happy_hours:"Happy Hours", loyalty_points:"Loyalty points", delivery_charge:"Delivery Charge", pickup_nocharge:"Pickup (no delivery charge)", to_pay:"To Pay" },
 
-hi:{ hero_tag:"जहाँ मिठास मिलती है तीखेपन से", veg_badge:"🌿 100% शुद्ध शाकाहारी", hero_sub:"ताज़े मोमोज़, गरमागरम वोक फ़ूड, चीज़ी पिज़्ज़ा और भी बहुत कुछ — ऑनलाइन ऑर्डर करें, गरम-गरम डिलीवर।", mode_delivery:"डिलीवरी", mode_pickup:"पिकअप", rider_cta:"डिलीवरी राइडर बुक करें — रेट्स कंपेयर करें (Porter · Borzo)", share_app:"ऐप शेयर करें", promo_title:"रोज़ की वैल्यू", promo_sub:"100% शुद्ध शाकाहारी · ऑर्डर करते ही ताज़ा बनता है", search_ph:"🔍 डिश खोजें — मोमोज़, पिज़्ज़ा, कोल्ड ड्रिंक…", items_added:"आइटम जुड़े", view_cart:"कार्ट देखें", foot_tag:"जहाँ मिठास मिलती है तीखेपन से · 100% शुद्ध शाकाहारी", join_rider:"डिलीवरी पार्टनर बनें", foot_home:"होम", foot_about:"हमारे बारे में", foot_contact:"संपर्क करें", foot_privacy:"प्राइवेसी पॉलिसी", foot_terms:"नियम व शर्तें", foot_refund:"रिफंड व कैंसिलेशन", foot_delivery:"डिलीवरी पॉलिसी", foot_rider:"राइडर बुक करें", foot_scanpay:"स्कैन व पे", foot_rateus:"रेट करें", foot_myorders:"मेरे ऑर्डर", foot_rights:"सर्वाधिकार सुरक्षित।", cart_title:"आपका कार्ट", cart_empty:"कार्ट खाली है। कुछ स्वादिष्ट जोड़ें!", proceed_checkout:"चेकआउट पर जाएं", delivery_details:"डिलीवरी डिटेल्स", label_fullname:"पूरा नाम", ph_fullname:"जैसे रोहित शर्मा", label_phone:"फ़ोन नंबर", ph_phone:"10 अंकों का मोबाइल नंबर", label_address:"डिलीवरी पता", ph_address:"मकान नंबर, गली, लैंडमार्क, इलाका", label_notes:"ऑर्डर नोट्स (वैकल्पिक)", ph_notes:"जैसे कम तीखा, बिना प्याज़", ph_coupon:"🎟️ कूपन कोड (जैसे WELCOME50)", apply_btn:"लगाएं", place_order:"ऑर्डर करें व भुगतान करें", scan_pay:"स्कैन व पे", scan_hint:"किसी भी UPI ऐप (GPay / PhonePe / Paytm) से यह QR स्कैन करें", pay_now:"अभी भुगतान करें — अपना UPI ऐप खोलें", pay_now_hint:"मोबाइल पर टैप करते ही PhonePe / Paytm / GPay खुल जाएगा, राशि पहले से भरी होगी। लैपटॉप पर ऊपर QR स्कैन करें।", ive_paid:"मैंने भुगतान कर दिया — WhatsApp पर ऑर्डर भेजें", track_title:"ऑर्डर ट्रैक करें", track_minleft:"मिनट बाकी", track_call:"रेस्टोरेंट कॉल करें", track_whatsapp:"WhatsApp पर चैट करें", track_back:"मेन्यू पर वापस जाएं", rate_title:"Bake 'N' Wok को रेट करें", rate_comment_ph:"खाना कैसा लगा? (वैकल्पिक)", rate_google:"Google पर भी रिव्यू करें — इससे हमें बहुत मदद मिलेगी 🙏", rate_submit:"सबमिट करें ✓", variant_done:"हो गया ✓", zara_nudge:"👋 कोई मदद चाहिए? मैं ज़ारा हूँ — डिश सुझाती हूँ और कार्ट में भी जोड़ देती हूँ!", zara_ask:"ज़ारा से पूछें", zara_sub:"Bake 'N' Wok असिस्टेंट", zara_input_ph:"टाइप करें या 🎤 दबाकर बोलें…", add_btn:"जोड़ें", half:"हाफ़", full:"फुल", out_of_stock:"स्टॉक ख़त्म", no_results:"के लिए कोई डिश नहीं मिली। दूसरा नाम आज़माएं। 🍽️", add_to_cart:"कार्ट में जोड़ें", subtotal:"सबटोटल", coupon:"कूपन", happy_hours:"हैप्पी आवर्स", loyalty_points:"लॉयल्टी पॉइंट्स", delivery_charge:"डिलीवरी चार्ज", pickup_nocharge:"पिकअप (कोई डिलीवरी चार्ज नहीं)", to_pay:"कुल भुगतान", shop_closed_msg:"हम अभी बंद हैं — नया ऑर्डर नहीं ले सकते। कृपया बाद में आएं 🙏" },
+hi:{ hero_tag:"जहाँ मिठास मिलती है तीखेपन से", veg_badge:"🌿 100% शुद्ध शाकाहारी", hero_sub:"ताज़े मोमोज़, गरमागरम वोक फ़ूड, चीज़ी पिज़्ज़ा और भी बहुत कुछ — ऑनलाइन ऑर्डर करें, गरम-गरम डिलीवर।", mode_delivery:"डिलीवरी", mode_pickup:"पिकअप", rider_cta:"डिलीवरी राइडर बुक करें — रेट्स कंपेयर करें (Porter · Borzo)", share_app:"ऐप शेयर करें", promo_title:"रोज़ की वैल्यू", promo_sub:"100% शुद्ध शाकाहारी · ऑर्डर करते ही ताज़ा बनता है", search_ph:"🔍 डिश खोजें — मोमोज़, पिज़्ज़ा, कोल्ड ड्रिंक…", items_added:"आइटम जुड़े", view_cart:"कार्ट देखें", foot_tag:"जहाँ मिठास मिलती है तीखेपन से · 100% शुद्ध शाकाहारी", join_rider:"डिलीवरी पार्टनर बनें", foot_home:"होम", foot_about:"हमारे बारे में", foot_contact:"संपर्क करें", foot_privacy:"प्राइवेसी पॉलिसी", foot_terms:"नियम व शर्तें", foot_refund:"रिफंड व कैंसिलेशन", foot_delivery:"डिलीवरी पॉलिसी", foot_rider:"राइडर बुक करें", foot_scanpay:"स्कैन व पे", foot_rateus:"रेट करें", foot_myorders:"मेरे ऑर्डर", foot_rights:"सर्वाधिकार सुरक्षित।", cart_title:"आपका कार्ट", cart_empty:"कार्ट खाली है। कुछ स्वादिष्ट जोड़ें!", proceed_checkout:"चेकआउट पर जाएं", delivery_details:"डिलीवरी डिटेल्स", label_fullname:"पूरा नाम", ph_fullname:"जैसे रोहित शर्मा", label_phone:"फ़ोन नंबर", ph_phone:"10 अंकों का मोबाइल नंबर", label_address:"डिलीवरी पता", ph_address:"मकान नंबर, गली, लैंडमार्क, इलाका", label_notes:"ऑर्डर नोट्स (वैकल्पिक)", ph_notes:"जैसे कम तीखा, बिना प्याज़", ph_coupon:"🎟️ कूपन कोड (जैसे WELCOME50)", apply_btn:"लगाएं", place_order:"ऑर्डर करें व भुगतान करें", scan_pay:"स्कैन व पे", scan_hint:"किसी भी UPI ऐप (GPay / PhonePe / Paytm) से यह QR स्कैन करें", pay_now:"अभी भुगतान करें — अपना UPI ऐप खोलें", pay_now_hint:"मोबाइल पर टैप करते ही PhonePe / Paytm / GPay खुल जाएगा, राशि पहले से भरी होगी। लैपटॉप पर ऊपर QR स्कैन करें।", ive_paid:"मैंने भुगतान कर दिया — WhatsApp पर ऑर्डर भेजें", track_title:"ऑर्डर ट्रैक करें", track_minleft:"मिनट बाकी", track_call:"रेस्टोरेंट कॉल करें", track_whatsapp:"WhatsApp पर चैट करें", track_back:"मेन्यू पर वापस जाएं", rate_title:"Bake 'N' Wok को रेट करें", rate_comment_ph:"खाना कैसा लगा? (वैकल्पिक)", rate_google:"Google पर भी रिव्यू करें — इससे हमें बहुत मदद मिलेगी 🙏", rate_submit:"सबमिट करें ✓", variant_done:"हो गया ✓", zara_nudge:"👋 कोई मदद चाहिए? मैं ज़ारा हूँ — डिश सुझाती हूँ और कार्ट में भी जोड़ देती हूँ!", zara_ask:"ज़ारा से पूछें", zara_sub:"Bake 'N' Wok असिस्टेंट", zara_input_ph:"टाइप करें या 🎤 दबाकर बोलें…", add_btn:"जोड़ें", half:"हाफ़", full:"फुल", out_of_stock:"स्टॉक ख़त्म", no_results:"के लिए कोई डिश नहीं मिली। दूसरा नाम आज़माएं। 🍽️", add_to_cart:"कार्ट में जोड़ें", subtotal:"सबटोटल", coupon:"कूपन", happy_hours:"हैप्पी आवर्स", loyalty_points:"लॉयल्टी पॉइंट्स", delivery_charge:"डिलीवरी चार्ज", pickup_nocharge:"पिकअप (कोई डिलीवरी चार्ज नहीं)", to_pay:"कुल भुगतान" },
 
-hg:{ hero_tag:"Where Sweetness Meets Spice", veg_badge:"🌿 100% Pure Veg", hero_sub:"Fresh momos, sizzling wok food, cheesy pizzas aur bhi bahut kuch — online order karein, garam-garam deliver.", mode_delivery:"Delivery", mode_pickup:"Pickup", rider_cta:"Delivery Rider book karein — rates compare karein (Porter · Borzo)", share_app:"App Share Karein", promo_title:"Everyday Value", promo_sub:"100% Pure Veg · order milte hi fresh banta hai", search_ph:"🔍 Dish search karein — momos, pizza, cold drink…", items_added:"items added", view_cart:"View Cart", foot_tag:"Where Sweetness Meets Spice · 100% Pure Veg", join_rider:"Delivery Partner Banein", foot_home:"Home", foot_about:"About Us", foot_contact:"Contact", foot_privacy:"Privacy Policy", foot_terms:"Terms & Conditions", foot_refund:"Refund & Cancellation", foot_delivery:"Delivery Policy", foot_rider:"Rider Book Karein", foot_scanpay:"Scan & Pay", foot_rateus:"Rate Us", foot_myorders:"Mere Orders", foot_rights:"All rights reserved.", cart_title:"Aapka Cart", cart_empty:"Cart khaali hai. Kuch tasty add karein!", proceed_checkout:"Checkout par jaayein", delivery_details:"Delivery Details", label_fullname:"Poora Naam", ph_fullname:"jaise Rohit Sharma", label_phone:"Phone Number", ph_phone:"10-digit mobile number", label_address:"Delivery Address", ph_address:"House no, street, landmark, area", label_notes:"Order Notes (optional)", ph_notes:"jaise less spicy, no onion", ph_coupon:"🎟️ Coupon code (jaise WELCOME50)", apply_btn:"Apply", place_order:"Order Karein & Pay Karein", scan_pay:"Scan & Pay", scan_hint:"Kisi bhi UPI app (GPay / PhonePe / Paytm) se yeh QR scan karein", pay_now:"Pay Now — apna UPI app kholein", pay_now_hint:"Mobile par tap karte hi PhonePe / Paytm / GPay khul jaayega, amount bhara hua. Laptop par upar QR scan karein.", ive_paid:"I've Paid — Order WhatsApp par bhejein", track_title:"Order Track Karein", track_minleft:"MIN LEFT", track_call:"Restaurant Call Karein", track_whatsapp:"WhatsApp par Chat Karein", track_back:"Menu par Wapas jaayein", rate_title:"Bake 'N' Wok Rate Karein", rate_comment_ph:"Khana kaisa laga? (optional)", rate_google:"Google par bhi review karein — humein bahut madad milegi 🙏", rate_submit:"Submit ✓", variant_done:"Done ✓", zara_nudge:"👋 Kuch help chahiye? Main Zara hoon — dish suggest bhi karti hoon, cart me bhi daal deti hoon!", zara_ask:"Ask Zara", zara_sub:"Bake 'N' Wok assistant", zara_input_ph:"Type karein ya 🎤 dabakar boliye…", add_btn:"ADD", half:"Half", full:"Full", out_of_stock:"Out of stock", no_results:"ke liye koi dish nahi mili. Doosra naam try karo. 🍽️", add_to_cart:"Add to Cart", subtotal:"Subtotal", coupon:"Coupon", happy_hours:"Happy Hours", loyalty_points:"Loyalty points", delivery_charge:"Delivery Charge", pickup_nocharge:"Pickup (koi delivery charge nahi)", to_pay:"To Pay", shop_closed_msg:"Hum abhi band hain — naya order nahi le sakte. Baad me try karein 🙏" },
+hg:{ hero_tag:"Where Sweetness Meets Spice", veg_badge:"🌿 100% Pure Veg", hero_sub:"Fresh momos, sizzling wok food, cheesy pizzas aur bhi bahut kuch — online order karein, garam-garam deliver.", mode_delivery:"Delivery", mode_pickup:"Pickup", rider_cta:"Delivery Rider book karein — rates compare karein (Porter · Borzo)", share_app:"App Share Karein", promo_title:"Everyday Value", promo_sub:"100% Pure Veg · order milte hi fresh banta hai", search_ph:"🔍 Dish search karein — momos, pizza, cold drink…", items_added:"items added", view_cart:"View Cart", foot_tag:"Where Sweetness Meets Spice · 100% Pure Veg", join_rider:"Delivery Partner Banein", foot_home:"Home", foot_about:"About Us", foot_contact:"Contact", foot_privacy:"Privacy Policy", foot_terms:"Terms & Conditions", foot_refund:"Refund & Cancellation", foot_delivery:"Delivery Policy", foot_rider:"Rider Book Karein", foot_scanpay:"Scan & Pay", foot_rateus:"Rate Us", foot_myorders:"Mere Orders", foot_rights:"All rights reserved.", cart_title:"Aapka Cart", cart_empty:"Cart khaali hai. Kuch tasty add karein!", proceed_checkout:"Checkout par jaayein", delivery_details:"Delivery Details", label_fullname:"Poora Naam", ph_fullname:"jaise Rohit Sharma", label_phone:"Phone Number", ph_phone:"10-digit mobile number", label_address:"Delivery Address", ph_address:"House no, street, landmark, area", label_notes:"Order Notes (optional)", ph_notes:"jaise less spicy, no onion", ph_coupon:"🎟️ Coupon code (jaise WELCOME50)", apply_btn:"Apply", place_order:"Order Karein & Pay Karein", scan_pay:"Scan & Pay", scan_hint:"Kisi bhi UPI app (GPay / PhonePe / Paytm) se yeh QR scan karein", pay_now:"Pay Now — apna UPI app kholein", pay_now_hint:"Mobile par tap karte hi PhonePe / Paytm / GPay khul jaayega, amount bhara hua. Laptop par upar QR scan karein.", ive_paid:"I've Paid — Order WhatsApp par bhejein", track_title:"Order Track Karein", track_minleft:"MIN LEFT", track_call:"Restaurant Call Karein", track_whatsapp:"WhatsApp par Chat Karein", track_back:"Menu par Wapas jaayein", rate_title:"Bake 'N' Wok Rate Karein", rate_comment_ph:"Khana kaisa laga? (optional)", rate_google:"Google par bhi review karein — humein bahut madad milegi 🙏", rate_submit:"Submit ✓", variant_done:"Done ✓", zara_nudge:"👋 Kuch help chahiye? Main Zara hoon — dish suggest bhi karti hoon, cart me bhi daal deti hoon!", zara_ask:"Ask Zara", zara_sub:"Bake 'N' Wok assistant", zara_input_ph:"Type karein ya 🎤 dabakar boliye…", add_btn:"ADD", half:"Half", full:"Full", out_of_stock:"Out of stock", no_results:"ke liye koi dish nahi mili. Doosra naam try karo. 🍽️", add_to_cart:"Add to Cart", subtotal:"Subtotal", coupon:"Coupon", happy_hours:"Happy Hours", loyalty_points:"Loyalty points", delivery_charge:"Delivery Charge", pickup_nocharge:"Pickup (koi delivery charge nahi)", to_pay:"To Pay" },
 
 bn:{ hero_tag:"যেখানে মিষ্টতা মেশে ঝালের সাথে", veg_badge:"🌿 100% খাঁটি নিরামিষ", hero_sub:"তাজা মোমো, সিজলিং ওক ফুড, চিজি পিৎজা আরও অনেক কিছু — অনলাইনে অর্ডার করুন, গরম গরম ডেলিভারি পান।", mode_delivery:"ডেলিভারি", mode_pickup:"পিকআপ", rider_cta:"ডেলিভারি রাইডার বুক করুন — রেট তুলনা করুন (Porter · Borzo)", share_app:"অ্যাপ শেয়ার করুন", promo_title:"রোজকার ভ্যালু", promo_sub:"100% খাঁটি নিরামিষ · অর্ডার করলেই তাজা তৈরি হয়", search_ph:"🔍 ডিশ খুঁজুন — মোমো, পিৎজা, কোল্ড ড্রিংক…", items_added:"আইটেম যোগ হয়েছে", view_cart:"কার্ট দেখুন", foot_tag:"যেখানে মিষ্টতা মেশে ঝালের সাথে · 100% খাঁটি নিরামিষ", join_rider:"ডেলিভারি পার্টনার হোন", foot_home:"হোম", foot_about:"আমাদের সম্পর্কে", foot_contact:"যোগাযোগ", foot_privacy:"প্রাইভেসি পলিসি", foot_terms:"শর্তাবলী", foot_refund:"রিফান্ড ও বাতিলকরণ", foot_delivery:"ডেলিভারি পলিসি", foot_rider:"রাইডার বুক করুন", foot_scanpay:"স্ক্যান ও পে", foot_rateus:"রেট করুন", foot_myorders:"আমার অর্ডার", foot_rights:"সর্বস্বত্ব সংরক্ষিত।", cart_title:"আপনার কার্ট", cart_empty:"কার্ট খালি। সুস্বাদু কিছু যোগ করুন!", proceed_checkout:"চেকআউটে যান", delivery_details:"ডেলিভারি বিবরণ", label_fullname:"পুরো নাম", ph_fullname:"যেমন রোহিত শর্মা", label_phone:"ফোন নম্বর", ph_phone:"১০ সংখ্যার মোবাইল নম্বর", label_address:"ডেলিভারি ঠিকানা", ph_address:"বাড়ি নং, রাস্তা, ল্যান্ডমার্ক, এলাকা", label_notes:"অর্ডার নোট (ঐচ্ছিক)", ph_notes:"যেমন কম ঝাল, পেঁয়াজ ছাড়া", ph_coupon:"🎟️ কুপন কোড (যেমন WELCOME50)", apply_btn:"প্রয়োগ করুন", place_order:"অর্ডার করুন ও পে করুন", scan_pay:"স্ক্যান ও পে", scan_hint:"যেকোনো UPI অ্যাপ (GPay / PhonePe / Paytm) দিয়ে এই QR স্ক্যান করুন", pay_now:"এখনই পে করুন — আপনার UPI অ্যাপ খুলুন", pay_now_hint:"মোবাইলে ট্যাপ করলেই PhonePe / Paytm / GPay খুলে যাবে, পরিমাণ আগে থেকেই ভরা থাকবে। ল্যাপটপে উপরের QR স্ক্যান করুন।", ive_paid:"আমি পে করেছি — WhatsApp এ অর্ডার পাঠান", track_title:"অর্ডার ট্র্যাক করুন", track_minleft:"মিনিট বাকি", track_call:"রেস্টুরেন্টে কল করুন", track_whatsapp:"WhatsApp এ চ্যাট করুন", track_back:"মেনুতে ফিরে যান", rate_title:"Bake 'N' Wok রেট করুন", rate_comment_ph:"খাবার কেমন লাগলো? (ঐচ্ছিক)", rate_google:"Google-এও একটি রিভিউ দিন — এটি আমাদের অনেক সাহায্য করবে 🙏", rate_submit:"সাবমিট করুন ✓", variant_done:"হয়ে গেছে ✓", zara_nudge:"👋 সাহায্য দরকার? আমি জারা — আমি ডিশ সাজেস্ট করি এবং কার্টেও যোগ করে দিই!", zara_ask:"জারাকে জিজ্ঞাসা করুন", zara_sub:"Bake 'N' Wok সহায়ক", zara_input_ph:"টাইপ করুন বা 🎤 চেপে বলুন…", add_btn:"যোগ করুন", half:"হাফ", full:"ফুল", out_of_stock:"স্টক নেই", no_results:"এর জন্য কোনো ডিশ পাওয়া যায়নি। অন্য নাম চেষ্টা করুন। 🍽️", add_to_cart:"কার্টে যোগ করুন", subtotal:"সাবটোটাল", coupon:"কুপন", happy_hours:"হ্যাপি আওয়ার্স", loyalty_points:"লয়ালটি পয়েন্ট", delivery_charge:"ডেলিভারি চার্জ", pickup_nocharge:"পিকআপ (কোনো ডেলিভারি চার্জ নেই)", to_pay:"মোট প্রদেয়" },
 
