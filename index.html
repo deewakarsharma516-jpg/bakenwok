@@ -2618,7 +2618,7 @@ function statusMsg(o){
 }
 
 function setOrderStatus(orderId, status){
-  const o = ORDERS.find(x=>x.orderId===orderId);
+  const o = ORDERS.find(x=>String(x.orderId)===String(orderId));
   if(!o) return;
   o.status = status;
   statusOverride[orderId] = status;                      // Sheet slow ho to bhi wapas na palte
