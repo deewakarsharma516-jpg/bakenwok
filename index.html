@@ -2170,13 +2170,13 @@ function payNowTapped(){
 function confirmOnWhatsapp(){
   const o = currentOrder;
   if(!o) return;
-  let msg = `🧾 *New Order #${o.orderId}* — Bake 'N' Wok%0A%0A`;
-  msg += `*Name:* ${o.name}%0A*Phone:* ${o.phone}%0A*Address:* ${o.addr}%0A`;
-  if(o.notes) msg += `*Notes:* ${o.notes}%0A`;
-  msg += `%0A*Items:*%0A`;
-  o.items.forEach(i=> msg += `- ${i.name} x${i.qty} — ₹${i.price*i.qty}%0A`);
-  msg += `%0A*Subtotal:* ₹${o.subtotal}%0A*Delivery:* ₹${o.delivery}%0A*Total: ₹${o.total}*%0A%0A✅ Payment done via UPI`;
-  window.open(`https://wa.me/${CONFIG.whatsappNumber}?text=${msg}`, '_blank');
+  let msg = `🧾 *New Order No.${o.orderId}* — Bake 'N' Wok\n\n`;
+  msg += `*Name:* ${o.name}\n*Phone:* ${o.phone}\n*Address:* ${o.addr}\n`;
+  if(o.notes) msg += `*Notes:* ${o.notes}\n`;
+  msg += `\n*Items:*\n`;
+  o.items.forEach(i=> msg += `- ${i.name} x${i.qty} — ₹${i.price*i.qty}\n`);
+  msg += `\n*Subtotal:* ₹${o.subtotal}\n*Delivery:* ₹${o.delivery}\n*Total: ₹${o.total}*\n\n✅ Payment done via UPI`;
+  window.open(`https://wa.me/${CONFIG.whatsappNumber}?text=${encodeURIComponent(msg)}`, '_blank');
 
   closeSheet('payOverlay');
   refreshAdminOrders();
@@ -3077,7 +3077,7 @@ const PAGE_INFO = {
   address: "Shop No. 6, Near Gupta General Store, Masjid Road, Dayal Nagar, Faridabad - 121003 (HR)",
   phone: "9076769441",
   whatsapp: "919076769441",
-  email: "bakenwok1@gmail.com",   // <-- apna real email yahan daalo
+  email: "bakenwok@gmail.com",   // <-- apna real email yahan daalo
   mapUrl: "https://www.google.com/maps?q=28.468361,77.301222",
   googleUrl: "https://www.google.com/maps/search/?api=1&query=Bake+N+Wok+Dayal+Nagar+Faridabad",  // <-- GBP ka review link mile to yahan daalna
   googleScore: "5.0",   // <-- Google rating (badalne par update karna)
