@@ -762,6 +762,7 @@
   <div id="trackBanner"></div>
 
   <button class="rider-cta" onclick="openPage('partner')">🛵 Book a Delivery Rider — compare rates (Porter · Borzo)</button>
+  <button class="rider-cta" onclick="shareApp()" style="margin-top:8px;background:#1f6b5e;">📤 App Share Karein</button>
 
   <div id="repeatBanner"></div>
   <div id="reviewsStrip"></div>
@@ -2627,6 +2628,91 @@ function setOrderStatus(orderId, status){
   window.open(waStatusLink(o), '_blank');                // WhatsApp message turant khul jaata hai — bas Send dabao
 }
 
+/* ---------- APP SHARE 📤 ---------- */
+function shareApp(){
+  const url = location.href.split('?')[0].split('#')[0];
+  const text = `🍽️ ${CONFIG.restaurantName} — Fresh momos, sizzling wok food, cheesy pizzas aur bahut kuch, order karein online!`;
+  if(navigator.share){
+    navigator.share({ title: CONFIG.restaurantName, text, url }).catch(()=>{});
+  } else {
+    window.open(`https://wa.me/?text=${encodeURIComponent(text + '\n' + url)}`, '_blank');
+  }
+}
+
+/* ---------- RIDER DELIVERY LINK 🛵 ----------
+   Delivery boy ko ek chhota link bhej dete hain (WhatsApp par) jisse wo khud
+   "Delivered" mark kar sake — bina admin panel ke andar aaye. */
+async function riderKeyFor(orderId){
+  return (await sha256(String(orderId) + CONFIG.adminSecret)).slice(0,12);
+}
+async function sendRiderLink(orderId){
+  const o = ORDERS.find(x=>String(x.orderId)===String(orderId));
+  if(!o) return;
+  const key = await riderKeyFor(orderId);
+  const link = location.origin + location.pathname + '?rider=' + orderId + '&key=' + key;
+  const itemsTxt = Array.isArray(o.items) ? o.items.map(i=>`${i.name} x${i.qty}`).join(', ') : (o.items||'');
+  const msg = `🛵 *Delivery Order #${orderId}*\n*Name:* ${o.name}\n*Phone:* ${o.phone}\n*Address:* ${o.addr}\n*Items:* ${itemsTxt}\n*Total:* ₹${o.total}\n\nDelivery ho jaane ke baad yahan click karke confirm karein:\n${link}`;
+  const boy = DELIVERY_BOYS.find(b=>b.active);
+  const waNum = boy ? boy.whatsapp : '';
+  window.open(`https://wa.me/${waNum}?text=${encodeURIComponent(msg)}`, '_blank');
+}
+
+/* ---------- RIDER VIEW (delivery boy ka apna chhota page) ----------
+   URL me ?rider=ORDERID&key=XXX ho to normal store hide karke sirf
+   order details + "Mark as Delivered" button dikhate hain. */
+function initRiderView(){
+  const params = new URLSearchParams(location.search);
+  const rid = params.get('rider'), rkey = params.get('key');
+  if(!rid || !rkey) return false;
+  document.getElementById('storeScreen').style.display = 'none';
+  const box = document.createElement('div');
+  box.id = 'riderScreen';
+  box.style.cssText = 'max-width:440px;margin:40px auto;padding:0 16px;font-family:inherit;';
+  box.innerHTML = '<p style="text-align:center;color:#8a7a63;">⏳ Order load ho raha hai…</p>';
+  document.body.appendChild(box);
+  jsonpGet({get:'riderOrder', orderId:rid, key:rkey}).then(r=>{
+    if(!r || !r.ok){
+      box.innerHTML = '<p style="text-align:center;color:#c0392b;padding:30px 0;">❌ Ye link invalid hai ya expire ho chuka hai.</p>';
+      return;
+    }
+    const o = r.order;
+    const delivered = o.status === 'Delivered';
+    box.innerHTML = `
+      <div style="border:1px solid #ecd9ad;border-radius:14px;padding:20px;background:#fffdf8;">
+        <h2 style="margin:0 0 10px;color:#7a1f3d;">🛵 Order #${esc(o.orderId)}</h2>
+        <p style="margin:4px 0;"><b>${esc(o.name)}</b> · ${esc(o.phone)}</p>
+        <p style="margin:4px 0;color:#8a7a63;">${esc(o.addr)}</p>
+        <p style="margin:10px 0;">${esc(o.items)}</p>
+        <p style="font-weight:bold;margin:4px 0;">Total: ₹${esc(String(o.total))}</p>
+        <p id="riderStatusMsg" style="margin-top:14px;font-weight:bold;color:${delivered?'#3d8b40':'#8a7a63'};">Status: ${esc(o.status)}</p>
+        ${!delivered ? `<button id="riderDeliverBtn" style="width:100%;padding:14px;background:#3d8b40;color:#fff;border:none;border-radius:10px;font-size:16px;margin-top:10px;cursor:pointer;">✅ Mark as Delivered</button>` : ''}
+      </div>`;
+    const btn = document.getElementById('riderDeliverBtn');
+    if(btn){
+      btn.onclick = async ()=>{
+        btn.disabled = true; btn.textContent = '⏳ Confirm ho raha hai…';
+        try{
+          const rr = await jsonpGet({get:'riderDeliver', orderId:rid, key:rkey});
+          if(rr && rr.ok){
+            document.getElementById('riderStatusMsg').textContent = '✅ Delivered — Thank you!';
+            document.getElementById('riderStatusMsg').style.color = '#3d8b40';
+            btn.remove();
+          } else {
+            btn.disabled = false; btn.textContent = '✅ Mark as Delivered';
+            alert('Kuch gadbad ho gayi, dobara try karein.');
+          }
+        }catch(e){
+          btn.disabled = false; btn.textContent = '✅ Mark as Delivered';
+          alert('Net problem — dobara try karein.');
+        }
+      };
+    }
+  }).catch(()=>{
+    box.innerHTML = '<p style="text-align:center;color:#c0392b;padding:30px 0;">Net problem — dobara try karein.</p>';
+  });
+  return true;
+}
+
 function waStatusLink(o){
   const phone = ('' + o.phone).replace(/\D/g,'');
   const full = phone.length===10 ? '91'+phone : phone;
@@ -2727,6 +2813,7 @@ function refreshAdminOrders(){
         <a class="ost-wa" href="${waStatusLink(o)}" target="_blank">💬 WhatsApp</a>
         <a class="ost-call" href="tel:${o.phone}">📞 Call</a>
         ${mapBtn}
+        ${st !== 'Delivered' ? `<a class="ost-map" href="#" onclick="sendRiderLink('${o.orderId}'); return false;">🛵 Rider Link</a>` : ''}
       </div>
     </div>`;
   }).join('');
@@ -3436,22 +3523,25 @@ MENU.forEach(m=>{
     m.priceHalf = Math.max(5, Math.round((m.price * 0.6) / 5) * 5);
   }
 });
-initHeroVideo();
-renderCatNav();
-renderCategoryGrid();
-updateDeliveryStatusUI();
-renderMenu();
-renderVideoReels();
-populateCatSelect();
-updateCartBar();
-loadProductsFromSheet();
-loadOrdersFromSheet();
-renderRepeatBanner();
-loadRatings();
-renderHappyBanner();
-renderTrackBanner();
-restoreAdminSession();   // admin khula tha to khula hi rahega (refresh par bhi)
-document.getElementById('footYear').textContent = new Date().getFullYear();
+const isRiderLinkView = initRiderView();   // ?rider=ID&key=XXX ho to sirf delivery-confirm page dikhao
+if(!isRiderLinkView){
+  initHeroVideo();
+  renderCatNav();
+  renderCategoryGrid();
+  updateDeliveryStatusUI();
+  renderMenu();
+  renderVideoReels();
+  populateCatSelect();
+  updateCartBar();
+  loadProductsFromSheet();
+  loadOrdersFromSheet();
+  renderRepeatBanner();
+  loadRatings();
+  renderHappyBanner();
+  renderTrackBanner();
+  restoreAdminSession();   // admin khula tha to khula hi rahega (refresh par bhi)
+  document.getElementById('footYear').textContent = new Date().getFullYear();
+}
 
 /* ============================================================
    GA4 ANALYTICS (#9)
