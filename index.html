@@ -2916,7 +2916,8 @@ function checkNewOrders(){
    Worker should accept POST {messages:[{role,content}]} and return
    the reply as JSON (reply / content / choices[0].message.content).
    ============================================================ */
-const ZARA_API_URL = "https://zeroscale-proxy.deewakar-sharma516.workers.dev/";
+/* Bake 'N' Wok ka apna dedicated AI Worker (Groq + Cerebras fallback) */
+const ZARA_API_URL = "https://bakenwok-proxy.bakenwok1.workers.dev/";
 
 let zaraHistory = [];
 let zaraOpened = false;
@@ -2982,10 +2983,46 @@ function zaraFindItem(q){
     }
     if(score > bestScore){ bestScore = score; best = m; }
   });
-  return bestScore >= 20 ? best : null;
+  if(bestScore >= 20) return best;
+  // Naam se nahi mila — category se try karo (jaise "cold drink" → Cold Drinks ka pehla item)
+  const qq = q.replace(/s\b/g,'');
+  const catHit = MENU.find(m=>{
+    if(!m.stock) return false;
+    const cat = m.cat.toLowerCase();
+    return cat.includes(qq) || qq.includes(cat) || cat.replace(/s\b/,'').includes(qq);
+  });
+  return catHit || null;
 }
 
-const ZARA_ORDER_VERBS = /add|daal|dal do|daldo|chahiye|de do|dedo|de dena|dena|dila|bhej|bhijwa|mangwa|mangao|manga do|order kar|le lo|lelo|lena hai|leni hai|khana hai|khani hai|kha lunga|kha lungi|bana do|banao|i want|want|send|get me|lao|la do|lado/;
+const ZARA_ORDER_VERBS = /add|daal|dal do|daldo|chahiye|de do|dedo|de dena|dena|dila|bhej|bhijwa|mangwa|mangao|manga do|order kar|le lo|lelo|lena hai|leni hai|khana hai|khani hai|kha lunga|kha lungi|bana do|banao|pack kar|pack karo|pak kar|i want|want|send|get me|lao|la do|lado/;
+
+// Devanagari (हिन्दी) → Hinglish, taaki regex aur menu-match Hindi typing/voice par bhi kaam kare
+function zaraHindiToHinglish(t){
+  const map = [
+    [/मोमोज|मोमोस|मोमो/g,' momos '],[/पिज़्ज़ा|पिज्जा|पिज़ा|पिजा/g,' pizza '],[/चाउमीन|चाउमिन|चौमीन/g,' chowmein '],
+    [/बर्गर/g,' burger '],[/पनीर/g,' paneer '],[/रोल/g,' roll '],[/पैटी|पेटी/g,' patty '],[/सैंडविच|सेंडविच/g,' sandwich '],
+    [/फ्राइड राइस|फ्राईड राइस/g,' fried rice '],[/नूडल्स|नूडल/g,' noodles '],[/मंचूरियन/g,' manchurian '],
+    [/कोल्ड ड्रिंक|कोल्डड्रिंक|कोल ड्रिंक/g,' cold drink '],[/कोका कोला|कोकाकोला|कोक/g,' coke '],[/स्प्राइट/g,' sprite '],[/पानी/g,' water '],
+    [/स्प्रिंग रोल/g,' spring roll '],[/गार्लिक ब्रेड/g,' garlic bread '],[/पास्ता/g,' pasta '],[/चिल्ली पोटैटो|चिली पोटैटो|चिली आलू/g,' chilli potato '],
+    [/हाफ प्लेट|आधा प्लेट|आधी प्लेट/g,' half '],[/हाफ/g,' half '],[/आधा|आधी/g,' half '],[/फुल प्लेट|पूरा प्लेट|पूरी प्लेट/g,' full '],[/फुल/g,' full '],[/प्लेट/g,' '],
+    [/पैक कर दो|पैक करो|पैक करदो|पैक कर/g,' add '],[/ऐड करो|एड करो|ऐड कर दो|एड कर दो|ऐड|एड/g,' add '],
+    [/भेज दो|भेजो|भिजवा दो|भिजवाओ/g,' bhej do '],[/मंगवा दो|मंगवाओ|मंगा दो|मंगाओ/g,' mangwa do '],
+    [/डाल दो|डालो|डालदो/g,' daal do '],[/दे दो|देदो|दे देना|देना/g,' de do '],[/बना दो|बनाओ|बनादो/g,' bana do '],
+    [/कर दो|करदो|करो|कीजिए|कीजिये/g,' karo '],
+    [/एक/g,' 1 '],[/दो/g,' 2 '],[/तीन/g,' 3 '],[/चार/g,' 4 '],[/पांच|पाँच/g,' 5 '],[/छह|छः/g,' 6 '],[/दस/g,' 10 '],
+    [/चाहिए|चाहिये|चहिए/g,' chahiye '],[/ले लो|लेलो|लेना है|लेनी है/g,' le lo '],[/खाना है|खानी है|खाने का मन/g,' khana hai '],
+    [/ऑर्डर|आर्डर|आडर/g,' order '],[/स्टेटस|स्टैटस/g,' status '],[/कहां है|कहाँ है|कहा है/g,' kahan hai '],
+    [/मेन्यू|मेनू|मेनु/g,' menu '],[/पार्टी/g,' party '],[/शादी/g,' shaadi '],[/बर्थडे|जन्मदिन/g,' birthday '],
+    [/डिलीवरी|डिलिवरी/g,' delivery '],[/पेमेंट|भुगतान/g,' payment '],[/टाइम|टाइमिंग|समय/g,' time '],
+    [/क्या क्या|क्या-क्या/g,' kya kya '],[/क्या/g,' kya '],[/है|हैं/g,' hai '],[/तुम्हारे पास|आपके पास/g,' menu '],
+    [/और/g," aur "],[/भैया|भइया|भाई/g,' '],[/दीदी/g,' '],[/मुझे|हमें|हमको/g,' ']
+  ];
+  let out = t;
+  map.forEach(([re,rep])=>{ out = out.replace(re,rep); });
+  // bacha hua Devanagari hatao, extra spaces saaf karo
+  out = out.replace(/[\u0900-\u097F]+/g,' ').replace(/\s+/g,' ').trim();
+  return out;
+}
 
 function zaraCartCommand(text){
   const q = text.toLowerCase();
@@ -3069,12 +3106,15 @@ async function sendZara(){
   addZaraMsg('user', text);
   renderZaraChips([]);
 
+  // Devanagari Hindi ho to pehle Hinglish me badlo (regex/menu-match ke liye)
+  const textH = /[\u0900-\u097F]/.test(text) ? zaraHindiToHinglish(text) : text;
+
   // 1) Lead flow (agar chal raha hai ya shuru ho raha hai)
-  const lead = zaraLeadFlow(text);
+  const lead = zaraLeadFlow(zaraLead ? text : textH);
   if(lead){ addZaraMsg('bot', lead); return; }
 
-  // 2) Cart command — "2 veg momos add karo"
-  const cmd = zaraCartCommand(text);
+  // 2) Cart command — "2 veg momos add karo" / "दो मोमोज ऐड करो"
+  const cmd = zaraCartCommand(textH);
   if(cmd && cmd.items){
     const lines = [];
     let lastItem = null;
@@ -3097,11 +3137,11 @@ async function sendZara(){
   // cmd.miss (kuch nahi mila) — AI ko samajhne do, dead-end mat do
 
   // 3) Order status
-  const st = zaraOrderStatus(text);
+  const st = zaraOrderStatus(textH);
   if(st){ addZaraMsg('bot', st.replace(/\*\*/g,'')); return; }
 
   // 4) Delivery rate / rider helper
-  if(/rider|porter|borzo|rate kya|kitne ki delivery|delivery rate|khud deliver/.test(text.toLowerCase())){
+  if(/rider|porter|borzo|rate kya|kitne ki delivery|delivery rate|khud deliver/.test(textH.toLowerCase())){
     renderZaraChips(['🛵 Rider book karein','🥟 Popular dishes']);
     addZaraMsg('bot', `Order confirm hone ke baad aap khud rider book kar sakte ho — Porter/Borzo par rate compare karke, payment bhi wahi karo. 🛵 Neeche "Rider book karein" dabao.`);
     return;
@@ -3110,8 +3150,8 @@ async function sendZara(){
   // 5) AI / built-in jawab
   const typing = addZaraMsg('bot typing', 'Zara type kar rahi hai…');
   let reply;
-  if(ZARA_API_URL){ reply = await zaraAI(text); }
-  else { reply = zaraLocal(text); }
+  if(ZARA_API_URL){ reply = await zaraAI(text, textH); }
+  else { reply = zaraLocal(textH); }
   typing.remove();
   addZaraMsg('bot', reply);
 }
@@ -3119,6 +3159,15 @@ async function sendZara(){
 // Built-in quick answers (work with no API at all)
 function zaraLocal(qRaw){
   const q = qRaw.toLowerCase();
+  if(/menu|kya kya|items|item kya|kya milta|kya milega|list/.test(q)){
+    const cats = [...new Set(MENU.filter(m=>m.stock).map(m=>m.cat))];
+    const lines = cats.slice(0,8).map(c=>{
+      const its = MENU.filter(m=>m.stock && m.cat===c).slice(0,3).map(m=>`${m.name} ₹${m.price}`).join(', ');
+      return `• ${c}: ${its}`;
+    }).join('\n');
+    renderZaraChips(['🥟 Popular dishes','add veg momos','🛒 Cart kholo']);
+    return `Humare paas yeh sab hai 😋:\n${lines}\n\nJo pasand aaye bolo "add <naam>" — main cart me daal dungi! 🛒`;
+  }
   if(/veg|non.?veg|egg|meat|chicken|ande/.test(q))
     return `Humara saara khana 100% pure veg hai 🌿 — koi non-veg nahi. Tension-free order karo!`;
   if(/deliver|charge|free|shipping/.test(q)){
@@ -3181,22 +3230,24 @@ function zaraExecuteActions(reply, userText){
 }
 
 // Full AI via your Cloudflare Worker (used only when ZARA_API_URL is set)
-async function zaraAI(text){
+async function zaraAI(text, textH){
   zaraHistory.push({role:'user', content:text});
-  try{
-    const res = await fetch(ZARA_API_URL, {
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ model:'llama-3.3-70b-versatile', messages: [{role:'system', content: zaraSystemPrompt()}, ...zaraHistory.slice(-8)] })
-    });
-    const data = await res.json();
-    let reply = data.reply || data.content
-      || (data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content)
-      || 'Sorry, main abhi jawab nahi de paayi. Thodi der baad try karo. 🙏';
-    zaraHistory.push({role:'assistant', content:reply});
-    reply = zaraExecuteActions(reply, text);
-    return reply;
-  }catch(err){ return zaraLocal(text); }
+  const payload = JSON.stringify({ model:'llama-3.3-70b-versatile', messages: [{role:'system', content: zaraSystemPrompt()}, ...zaraHistory.slice(-8)] });
+  let reply = '';
+  // 2 koshish: pehli fail ho to 1.2 sec ruk kar dobara
+  for(let attempt=1; attempt<=2 && !reply; attempt++){
+    try{
+      const res = await fetch(ZARA_API_URL, { method:'POST', headers:{'Content-Type':'application/json'}, body: payload });
+      const data = await res.json();
+      reply = data.reply || data.content
+        || (data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content) || '';
+    }catch(err){ reply = ''; }
+    if(!reply && attempt===1) await new Promise(r=>setTimeout(r,1200));
+  }
+  if(!reply){ zaraHistory.pop(); return zaraLocal(textH || text); } // AI down — built-in jawab
+  zaraHistory.push({role:'assistant', content:reply});
+  reply = zaraExecuteActions(reply, text);
+  return reply;
 }
 
 /* ---------- Zara: Hindi voice input 🎤 ---------- */
