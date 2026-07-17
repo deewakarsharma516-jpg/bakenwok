@@ -1018,6 +1018,10 @@
     </div>
     <a class="btn pay-now" id="payNowBtn" href="#" onclick="payNowTapped()">📲 <span data-i18n="pay_now">Pay Now — apna UPI app kholein</span></a>
     <p style="font-size:12px;color:#8a7a63;text-align:center;margin:-2px 0 10px;" data-i18n="pay_now_hint">Mobile par tap karte hi PhonePe / Paytm / GPay khul jaayega, amount bhara hua. Laptop par upar QR scan karein.</p>
+    <div style="margin:10px 0;">
+      <input id="utrInput" maxlength="12" inputmode="numeric" placeholder="UPI Transaction ID / UTR (12 digit)" style="width:100%;padding:10px;border:1px solid #d9c9a8;border-radius:8px;">
+      <p style="font-size:12px;color:#8a7a63;margin-top:4px;">💡 Payment app me "Transaction ID" ya "UTR" — 12 digit ka number. Iske bina order confirm nahi hoga.</p>
+    </div>
     <button class="btn gold" onclick="confirmOnWhatsapp()">✅ <span data-i18n="ive_paid">I've Paid — Send Order on WhatsApp</span></button>
   </div>
 </div>
@@ -1085,7 +1089,10 @@
             <input id="newItemName" placeholder="Item name (e.g. Veg Momos)">
             <div class="two-col">
               <input id="newItemPrice" placeholder="Price ₹" type="number">
-              <select id="newItemCat"></select>
+              <div style="display:flex;gap:6px;">
+                <select id="newItemCat" style="flex:1;"></select>
+                <button type="button" class="small-btn" style="padding:8px 10px;background:var(--teal);color:#fff;" onclick="addNewCategory()">➕ Nayi</button>
+              </div>
             </div>
             <input id="newItemDesc" placeholder="Short description (optional)">
             <input id="newItemVideo" placeholder="Video link (optional — .mp4 or YouTube URL)">
@@ -1126,6 +1133,34 @@
         <input id="hhText" placeholder="Banner text (Happy Hours! 3-6 baje 15% OFF)" style="width:100%;box-sizing:border-box;margin-bottom:6px;">
         <button class="btn" onclick="saveHappy()">Save Offer</button>
         <p style="font-size:11px;color:#8a7a63;margin-top:6px;">Ghante 24-hour me (15 = dopahar 3 baje). On hone par us time homepage banner + bill me discount apne aap.</p>
+      </div>
+      <div class="admin-card">
+        <label>✏️ Edit Product (rate / image / stock)</label>
+        <select id="epSelect" onchange="epLoad()" style="width:100%;padding:10px;margin-bottom:6px;border:1px solid #d9c9a8;border-radius:8px;">
+          <option value="">— Product chunein —</option>
+        </select>
+        <div style="display:flex;gap:8px;margin-bottom:6px;">
+          <input id="epPrice" type="number" placeholder="Full price ₹" style="flex:1;min-width:90px;">
+          <input id="epHalf" type="number" placeholder="Half price ₹ (optional)" style="flex:1;min-width:90px;">
+        </div>
+        <input id="epImg" placeholder="Image URL (ImgBB direct .jpg link)" style="width:100%;box-sizing:border-box;margin-bottom:6px;">
+        <input id="epDesc" placeholder="Description" style="width:100%;box-sizing:border-box;margin-bottom:6px;">
+        <div style="display:flex;gap:8px;margin-bottom:6px;">
+          <button class="small-btn" id="epStockIn" style="flex:1;padding:10px;background:var(--teal);color:#fff;" onclick="epStock=true;epStockBtns()">✅ In Stock</button>
+          <button class="small-btn" id="epStockOut" style="flex:1;padding:10px;background:#ecd9ad;color:var(--maroon);" onclick="epStock=false;epStockBtns()">❌ Out of Stock</button>
+        </div>
+        <button class="btn" onclick="epSave()">💾 Save Changes</button>
+        <p style="font-size:11px;color:#8a7a63;margin-top:6px;">Sirf Sheet se add kiye products edit honge. Save ke baad Google Sheet me turant update — sab customers ko naya rate dikhega (page refresh par).</p>
+      </div>
+      <div class="admin-card">
+        <label>🔒 Toggle PIN Change (4 digit)</label>
+        <div style="display:flex;gap:8px;margin-bottom:6px;">
+          <input id="pinOld" type="password" maxlength="4" inputmode="numeric" placeholder="Purana PIN" style="flex:1;min-width:90px;">
+          <input id="pinNew" type="password" maxlength="4" inputmode="numeric" placeholder="Naya PIN" style="flex:1;min-width:90px;">
+        </div>
+        <button class="btn" onclick="changeTogglePin()">💾 PIN Badlein</button>
+        <p id="pinMsg" style="font-size:12px;margin-top:6px;"></p>
+        <p style="font-size:11px;color:#8a7a63;margin-top:4px;">Yeh PIN sabhi on/off buttons par lagta hai. Google Sheet (Config tab) me surakshit rehta hai — default: 2026.</p>
       </div>
       <div class="admin-card">
         <label>Shop Status (Open / Closed)</label>
@@ -1260,9 +1295,9 @@ const DELIVERY_PARTNERS = {
 
 // Local delivery boys — Admin > Settings > "Delivery Boys" se add/remove/on-off hota hai.
 // Yahan sirf starting demo data hai; asli list Admin panel se manage karo.
-let DELIVERY_BOYS = [
-  { name: "Delivery Boy 1", whatsapp: "91XXXXXXXXXX", active: true }
-];
+let DELIVERY_BOYS = [];
+try{ DELIVERY_BOYS = JSON.parse(localStorage.getItem('bnw_boys')||'[]'); }catch(e){}
+function saveBoys(){ try{ localStorage.setItem('bnw_boys', JSON.stringify(DELIVERY_BOYS)); }catch(e){} }
 
 /* Admin: delivery-boy list render / add / toggle / remove */
 function renderDeliveryBoyAdmin(){
@@ -1276,19 +1311,19 @@ function renderDeliveryBoyAdmin(){
     </div>`).join('') : '<p style="font-size:12px;color:#8a7a63;">Koi delivery boy add nahi hua abhi tak.</p>';
 }
 function toggleDeliveryBoy(i){
-  if(DELIVERY_BOYS[i]){ DELIVERY_BOYS[i].active = !DELIVERY_BOYS[i].active; renderDeliveryBoyAdmin(); renderLocalBoyButtons(); }
+  if(DELIVERY_BOYS[i]){ DELIVERY_BOYS[i].active = !DELIVERY_BOYS[i].active; saveBoys(); renderDeliveryBoyAdmin(); renderLocalBoyButtons(); }
 }
 function removeDeliveryBoy(i){
   if(!DELIVERY_BOYS[i]) return;
   if(!confirm(`${DELIVERY_BOYS[i].name} ko list se hata dein?`)) return;
-  DELIVERY_BOYS.splice(i,1);
+  DELIVERY_BOYS.splice(i,1); saveBoys();
   renderDeliveryBoyAdmin(); renderLocalBoyButtons();
 }
 function addDeliveryBoy(){
   const name = (document.getElementById('boyName').value||'').trim();
   const whatsapp = (document.getElementById('boyWhatsapp').value||'').trim().replace(/[^0-9]/g,'');
   if(!name || !whatsapp){ alert("Naam aur WhatsApp number dono bharo (country code ke saath, jaise 91XXXXXXXXXX)."); return; }
-  DELIVERY_BOYS.push({ name, whatsapp, active:true });
+  DELIVERY_BOYS.push({ name, whatsapp, active:true }); saveBoys();
   document.getElementById('boyName').value=''; document.getElementById('boyWhatsapp').value='';
   renderDeliveryBoyAdmin(); renderLocalBoyButtons();
   alert(`${name} add ho gaya! ✅`);
@@ -1357,6 +1392,53 @@ async function bookDelivery(partnerKey, orderId, dropAddress, dropPhone){
    ============================================================ */
 const SHEET_URL = "https://script.google.com/macros/s/AKfycbxHjSqOAv80v8sRE-nGxZRbzobejoRW_GDcPkn71x1u4b7ep39Rpk38wK0IcvhEphBI/exec";
 
+/* ---------- Edit Product (Sheet wale products ka rate/image/stock badlo) ---------- */
+let epStock = true;
+function epPopulate(){
+  const sel = document.getElementById('epSelect');
+  if(!sel) return;
+  const keep = sel.value;
+  sel.innerHTML = '<option value="">— Product chunein —</option>' +
+    MENU.filter(m=>m.fromSheet).map(m=>`<option value="${m.id}">${m.name} (₹${m.price})</option>`).join('');
+  if(keep) sel.value = keep;
+}
+function epStockBtns(){
+  const a = document.getElementById('epStockIn'), b = document.getElementById('epStockOut');
+  if(!a||!b) return;
+  a.style.background = epStock ? 'var(--teal)' : '#ecd9ad'; a.style.color = epStock ? '#fff' : 'var(--maroon)';
+  b.style.background = epStock ? '#ecd9ad' : 'var(--nonveg)'; b.style.color = epStock ? 'var(--maroon)' : '#fff';
+}
+function epLoad(){
+  const id = document.getElementById('epSelect').value;
+  const m = MENU.find(x=>String(x.id)===String(id));
+  if(!m) return;
+  document.getElementById('epPrice').value = m.price || '';
+  document.getElementById('epHalf').value = m.priceHalf || '';
+  document.getElementById('epImg').value = (m.img && m.img.startsWith('http')) ? m.img : '';
+  document.getElementById('epDesc').value = m.desc || '';
+  epStock = m.stock !== false;
+  epStockBtns();
+}
+async function epSave(){
+  if(!(await askTogglePin())) return;
+  const id = document.getElementById('epSelect').value;
+  const m = MENU.find(x=>String(x.id)===String(id));
+  if(!m){ alert('Pehle product chunein.'); return; }
+  const price = Number(document.getElementById('epPrice').value) || m.price;
+  const half = Number(document.getElementById('epHalf').value) || '';
+  const img = document.getElementById('epImg').value.trim();
+  const desc = document.getElementById('epDesc').value.trim();
+  // Sheet me update (name se match hota hai)
+  sheetPost({action:'updateProduct', name:m.name, price:price, priceHalf:half, img:img, desc:desc, stock:epStock});
+  // Local turant update taaki aapko bhi dikhe
+  m.price = price; m.priceHalf = half || null;
+  if(img) m.img = img;
+  if(desc) m.desc = desc;
+  m.stock = epStock;
+  renderMenu(); epPopulate();
+  alert('✅ Save ho gaya! Google Sheet me update ho raha hai — customers ko refresh par naya rate dikhega.');
+}
+
 /* Admin toggle ko Google Sheet me save karo — har device par, refresh ke baad bhi same rahega */
 function saveSetting(key, value){
   sheetPost({action:'setSetting', key:key, value: value ? 'TRUE' : 'FALSE'});
@@ -1378,8 +1460,10 @@ async function loadProductsFromSheet(){
     if(data && data.ok && Array.isArray(data.products) && data.products.length){
       data.products.forEach(p=>{
         if(!p.name) return;
+        registerCategory(cleanText(p.category,40));
         MENU.push({
           id: nextItemId++,
+          fromSheet: true,
           cat: cleanText(p.category,40) || 'More',
           name: cleanText(p.name,80),
           veg: 'veg',
@@ -1396,6 +1480,7 @@ async function loadProductsFromSheet(){
       renderMenu();
       renderVideoReels();
       populateCatSelect();
+      epPopulate();
     }
   }catch(err){ console.log('Sheet load skipped:', err); }
 }
@@ -1423,7 +1508,7 @@ function sheetPost(payload){
   try{
     const body = Object.assign({}, payload);
     // Admin actions ke saath secret bhejo (Apps Script isko check karta hai)
-    if(['addProduct','updateStatus','deleteProduct','setSetting'].indexOf(body.action) !== -1){
+    if(['addProduct','updateStatus','deleteProduct','setSetting','updateProduct'].indexOf(body.action) !== -1){
       body.secret = CONFIG.adminSecret;
     }
     fetch(SHEET_URL, {
@@ -1666,7 +1751,8 @@ function updateDeliveryStatusUI(){
   }
 }
 
-function setShopOpen(open, skipSave){
+async function setShopOpen(open, skipSave){
+  if(!skipSave && !(await askTogglePin())) return;
   CONFIG.shopOpen = open;
   if(!skipSave) saveSetting('shopOpen', open);
   const on = document.getElementById('btnShopOpen'), off = document.getElementById('btnShopClosed');
@@ -1680,7 +1766,8 @@ function setShopOpen(open, skipSave){
 }
 
 /* ---------- DAILY TOKEN SYSTEM 🎫 ---------- */
-function setTokenEnabled(on, skipSave){
+async function setTokenEnabled(on, skipSave){
+  if(!skipSave && !(await askTogglePin())) return;
   CONFIG.tokenEnabled = on;
   if(!skipSave) saveSetting('tokenEnabled', on);
   const y = document.getElementById('btnTokenOn'), n = document.getElementById('btnTokenOff');
@@ -1699,7 +1786,8 @@ function nextToken(){
   return todayCount + 1;
 }
 
-function setDeliveryAvailability(available, skipSave){
+async function setDeliveryAvailability(available, skipSave){
+  if(!skipSave && !(await askTogglePin())) return;
   CONFIG.deliveryAvailable = available;
   if(!skipSave) saveSetting('deliveryAvailable', available);
   document.getElementById('btnDeliveryOn').style.background = available ? 'var(--teal)' : '#ecd9ad';
@@ -2048,7 +2136,8 @@ function renderHappyBanner(){
   el.innerHTML = `<div class="happy-banner">⏰ <b>${esc(HAPPY.text)}</b> — sirf ${Math.floor(mins/60)}h ${mins%60}m aur!</div>`;
 }
 setInterval(renderHappyBanner, 30000);
-function setHappy(on, skipSave){
+async function setHappy(on, skipSave){
+  if(!skipSave && !(await askTogglePin())) return;
   HAPPY.active = on;
   if(!skipSave) saveSetting('happyHour', on);
   const y=document.getElementById('btnHappyOn'), n=document.getElementById('btnHappyOff');
@@ -2221,14 +2310,26 @@ function payNowTapped(){
 function confirmOnWhatsapp(){
   const o = currentOrder;
   if(!o) return;
+  // UTR zaroori — bina asli payment ke 12-digit UTR mil hi nahi sakta
+  const utrBox = document.getElementById('utrInput');
+  const utr = utrBox ? utrBox.value.trim() : '';
+  if(!/^\d{12}$/.test(utr)){
+    alert("Pehle payment karein, phir apne UPI app se 12-digit Transaction ID (UTR) yahan daalein.\n\nGPay/PhonePe/Paytm me payment ke baad 'Transaction ID' ya 'UTR' dikhta hai — wahi copy karke daalo. 🙏");
+    if(utrBox) utrBox.focus();
+    return;
+  }
+  o.utr = utr;
+  // Order record me bhi UTR jode do (Sheet me dikhega)
+  try{ sheetPost({action:'updateStatus', orderId:o.orderId, status:'Pending Confirmation (UTR: '+utr+')'}); }catch(e){}
   let msg = `🧾 *New Order No.${o.orderId}* — Bake 'N' Wok\n\n`;
   msg += `*Name:* ${o.name}\n*Phone:* ${o.phone}\n*Address:* ${o.addr}\n`;
   if(o.notes) msg += `*Notes:* ${o.notes}\n`;
   msg += `\n*Items:*\n`;
   o.items.forEach(i=> msg += `- ${i.name} x${i.qty} — ₹${i.price*i.qty}\n`);
-  msg += `\n*Subtotal:* ₹${o.subtotal}\n*Delivery:* ₹${o.delivery}\n*Total: ₹${o.total}*\n\n✅ Payment done via UPI`;
+  msg += `\n*Subtotal:* ₹${o.subtotal}\n*Delivery:* ₹${o.delivery}\n*Total: ₹${o.total}*\n\n✅ Payment done via UPI\n🔖 *UTR:* ${o.utr}`;
   window.open(`https://wa.me/${CONFIG.whatsappNumber}?text=${encodeURIComponent(msg)}`, '_blank');
 
+  if(utrBox) utrBox.value = '';
   closeSheet('payOverlay');
   refreshAdminOrders();
   startTracking(o);
@@ -2555,6 +2656,26 @@ function showAdminTab(tab){
 function populateCatSelect(){
   document.getElementById('newItemCat').innerHTML = CATEGORIES.map(c=>`<option value="${c}">${c}</option>`).join('');
 }
+/* Nayi category banao — dropdown, homepage grid, menu sab me turant dikhegi */
+async function addNewCategory(){
+  if(!(await askTogglePin())) return;
+  const name = prompt("Nayi category ka naam (jaise: Rolls, Shakes, Combos):");
+  if(!name) return;
+  const clean = name.trim().slice(0,40);
+  if(!clean) return;
+  if(CATEGORIES.some(c=>c.toLowerCase() === clean.toLowerCase())){
+    alert("Yeh category pehle se hai! Dropdown me chun lijiye.");
+    return;
+  }
+  CATEGORIES.push(clean);
+  populateCatSelect();
+  renderCatNav(); renderCategoryGrid(); renderMenu();
+  document.getElementById('newItemCat').value = clean;
+  alert("✅ '" + clean + "' category ban gayi! Ab isme product add karo — product save hote hi customers ko bhi dikhegi.");
+}
+function registerCategory(cat){
+  if(cat && !CATEGORIES.some(c=>c.toLowerCase() === String(cat).toLowerCase())) CATEGORIES.push(cat);
+}
 
 function renderAdminMenu(){
   const list = document.getElementById('adminMenuList');
@@ -2702,9 +2823,10 @@ async function sendRiderLink(orderId){
   const link = location.origin + location.pathname + '?rider=' + orderId + '&key=' + key;
   const itemsTxt = Array.isArray(o.items) ? o.items.map(i=>`${i.name} x${i.qty}`).join(', ') : (o.items||'');
   const msg = `🛵 *Delivery Order #${orderId}*\n*Name:* ${o.name}\n*Phone:* ${o.phone}\n*Address:* ${o.addr}\n*Items:* ${itemsTxt}\n*Total:* ₹${o.total}\n\nDelivery ho jaane ke baad yahan click karke confirm karein:\n${link}`;
-  const boy = DELIVERY_BOYS.find(b=>b.active);
-  const waNum = boy ? boy.whatsapp : '';
-  window.open(`https://wa.me/${waNum}?text=${encodeURIComponent(msg)}`, '_blank');
+  const boy = DELIVERY_BOYS.find(b=>b.active && b.whatsapp && !/X/i.test(b.whatsapp));
+  const waNum = boy ? boy.whatsapp.replace(/\D/g,'') : '';
+  // Number saved hai to seedha us rider ki chat khulegi; nahi to WhatsApp chooser (khud chat chunein)
+  window.open(waNum ? `https://wa.me/${waNum}?text=${encodeURIComponent(msg)}` : `https://wa.me/?text=${encodeURIComponent(msg)}`, '_blank');
 }
 
 /* ---------- RIDER VIEW (delivery boy ka apna chhota page) ----------
@@ -2896,6 +3018,38 @@ function initHeroVideo(){
 /* ============================================================
    ORDER NOTIFICATION SOUND
    ============================================================ */
+/* ---- Admin toggle PIN: Google Sheet ke Config me save hai (default 2026),
+        wahan se verify hota hai — code me kahin nahi likha ---- */
+let _pinOkUntil = 0;
+async function askTogglePin(){
+  if(Date.now() < _pinOkUntil) return true;   // 2 minute tak dobara nahi poochhega
+  const p = prompt("🔒 4-digit PIN daalein:");
+  if(p === null) return false;
+  try{
+    const r = await jsonpGet({action:'checkPin', secret: CONFIG.adminSecret, pin: String(p).trim()});
+    if(r && r.ok){ _pinOkUntil = Date.now() + 120000; return true; }
+  }catch(e){ alert("Net problem — dobara try karein."); return false; }
+  alert("Galat PIN! ❌");
+  return false;
+}
+/* PIN change — purana PIN + naya 4-digit PIN, Sheet me save */
+async function changeTogglePin(){
+  const oldP = (document.getElementById('pinOld').value||'').trim();
+  const newP = (document.getElementById('pinNew').value||'').trim();
+  const msg = document.getElementById('pinMsg');
+  if(!/^\d{4}$/.test(newP)){ msg.textContent='❌ Naya PIN 4 digit ka hona chahiye.'; msg.style.color='#c0392b'; return; }
+  msg.textContent='⏳ Save ho raha hai…'; msg.style.color='#8a7a63';
+  try{
+    const r = await jsonpGet({action:'setPin', secret: CONFIG.adminSecret, oldPin: oldP, newPin: newP});
+    if(r && r.ok){
+      msg.textContent='✅ PIN badal gaya! Ab naya PIN sab devices par chalega.'; msg.style.color='#3d8b40';
+      _pinOkUntil = 0;
+      document.getElementById('pinOld').value=''; document.getElementById('pinNew').value='';
+    } else {
+      msg.textContent='❌ Purana PIN galat hai.'; msg.style.color='#c0392b';
+    }
+  }catch(e){ msg.textContent='❌ Net problem — dobara try karein.'; msg.style.color='#c0392b'; }
+}
 let orderSoundOn = false;
 try{ orderSoundOn = localStorage.getItem('bnw_sound') === '1'; }catch(e){}
 let lastOrderCount = 0;
@@ -2927,7 +3081,8 @@ function playBeep(){
     });
   }catch(e){ /* audio not available */ }
 }
-function setOrderSound(on, skipConfirm){
+async function setOrderSound(on, skipConfirm){
+  if(!skipConfirm && !(await askTogglePin())) return;
   orderSoundOn = on;
   try{ localStorage.setItem('bnw_sound', on ? '1' : '0'); }catch(e){}
   const yes = document.getElementById('btnSoundOn'), no = document.getElementById('btnSoundOff');
