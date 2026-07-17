@@ -1714,17 +1714,19 @@ async function quickStockToggle(id){
 }
 
 /* Admin toggle ko Google Sheet me save karo — har device par, refresh ke baad bhi same rahega */
+let _recentlyChanged = {};   // { settingKey: timestamp } — abhi-abhi maine jo badla
 function saveSetting(key, value){
+  _recentlyChanged[key] = Date.now();   // 12 sec tak sync ise wapas na badle
   sheetPost({action:'setSetting', key:key, value: value ? 'TRUE' : 'FALSE'});
-  // Apni is screen par turant lag gaya; doosri screen agle 8-sec sync me pakad legi
 }
+function _justChanged(key){ return _recentlyChanged[key] && (Date.now() - _recentlyChanged[key] < 12000); }
 function applyServerSettings(st){
   if(!st) return;
   let changed = false;
-  if(st.shopOpen !== undefined){ const v = st.shopOpen !== 'FALSE'; if(CONFIG.shopOpen !== v){ changed = true; } setShopOpen(v, true); }
-  if(st.deliveryAvailable !== undefined){ const v = st.deliveryAvailable !== 'FALSE'; if(CONFIG.deliveryAvailable !== v){ changed = true; } setDeliveryAvailability(v, true); }
-  if(st.tokenEnabled !== undefined){ const v = st.tokenEnabled !== 'FALSE'; if(CONFIG.tokenEnabled !== v){ changed = true; } setTokenEnabled(v, true); }
-  if(st.happyHour !== undefined){ const v = st.happyHour === 'TRUE'; if((HAPPY.active||false) !== v){ changed = true; } setHappy(v, true); }
+  if(st.shopOpen !== undefined && !_justChanged('shopOpen')){ const v = st.shopOpen !== 'FALSE'; if(CONFIG.shopOpen !== v){ changed = true; } setShopOpen(v, true); }
+  if(st.deliveryAvailable !== undefined && !_justChanged('deliveryAvailable')){ const v = st.deliveryAvailable !== 'FALSE'; if(CONFIG.deliveryAvailable !== v){ changed = true; } setDeliveryAvailability(v, true); }
+  if(st.tokenEnabled !== undefined && !_justChanged('tokenEnabled')){ const v = st.tokenEnabled !== 'FALSE'; if(CONFIG.tokenEnabled !== v){ changed = true; } setTokenEnabled(v, true); }
+  if(st.happyHour !== undefined && !_justChanged('happyHour')){ const v = st.happyHour === 'TRUE'; if((HAPPY.active||false) !== v){ changed = true; } setHappy(v, true); }
   // Kuch badla to menu/banner/bill sab refresh — doosri screen turant naya dikhaye
   if(changed){
     try{ updateDeliveryStatusUI(); }catch(e){}
