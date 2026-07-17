@@ -1715,10 +1715,18 @@ async function quickStockToggle(id){
 
 /* Admin toggle ko Google Sheet me save karo — har device par, refresh ke baad bhi same rahega */
 function saveSetting(key, value){
-  _recentlyChanged[key] = Date.now();   // 12 sec tak sync ise wapas na badle
-  sheetPost({action:'setSetting', key:key, value: value ? 'TRUE' : 'FALSE'});
+  _recentlyChanged[key] = Date.now();
+  // JSONP se bhejo taaki confirm mile ki Sheet me sach me save hua (no-cors me pata nahi chalta tha)
+  jsonpGet({action:'setSetting', secret: CONFIG.adminSecret, key:key, value: value ? 'TRUE' : 'FALSE'})
+    .then(r=>{
+      _recentlyChanged[key] = Date.now();  // confirm hone par window reset
+      if(!r || r.ok === false){
+        console.log('Setting save issue:', key, r);
+      }
+    })
+    .catch(e=>{ console.log('Setting save net error:', e); });
 }
-function _justChanged(key){ return _recentlyChanged[key] && (Date.now() - _recentlyChanged[key] < 20000); }
+function _justChanged(key){ return _recentlyChanged[key] && (Date.now() - _recentlyChanged[key] < 30000); }
 function applyServerSettings(st){
   if(!st) return;
   let changed = false;
