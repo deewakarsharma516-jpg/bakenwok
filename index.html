@@ -822,6 +822,7 @@
     <div class="foot-brand">Bake 'N' Wok</div>
     <div class="foot-tag" data-i18n="foot_tag">Where Sweetness Meets Spice · 100% Pure Veg</div>
     <button class="join-rider-foot" onclick="openPage('joinrider')">🤝 <span data-i18n="join_rider">Delivery Partner Banein</span></button>
+    <button class="join-rider-foot" style="margin-top:8px;" onclick="openRiderLogin()">🛵 Rider Login (Duty ON/OFF)</button>
     <div class="foot-links">
       <a onclick="closePage()" data-i18n="foot_home">Home</a>
       <a onclick="openPage('about')" data-i18n="foot_about">About Us</a>
@@ -849,6 +850,34 @@
 </div>
 
 <!-- ================= STATIC PAGES (About / Policies / Contact) ================= -->
+<!-- Rider Login: duty ON/OFF -->
+<div class="page-overlay" id="riderLoginOverlay">
+  <div class="page-box" style="max-width:400px;">
+    <div class="page-head">
+      <button class="pback" onclick="document.getElementById('riderLoginOverlay').classList.remove('show')">←</button>
+      <h3>🛵 Rider Login</h3>
+    </div>
+    <div style="padding:16px;" id="riderLoginBody">
+      <input id="rlPhone" inputmode="numeric" maxlength="10" placeholder="Apna 10-digit phone number" style="width:100%;box-sizing:border-box;padding:12px;margin-bottom:8px;border:1px solid #d9c9a8;border-radius:10px;">
+      <input id="rlPin" type="password" inputmode="numeric" maxlength="4" placeholder="4-digit PIN (pehli baar: phone ke aakhri 4 digit)" style="width:100%;box-sizing:border-box;padding:12px;margin-bottom:8px;border:1px solid #d9c9a8;border-radius:10px;">
+      <button class="btn" style="width:100%;" onclick="riderLogin()">Login</button>
+      <p style="text-align:center;margin-top:10px;"><a href="#" onclick="riderForgotPin(); return false;" style="color:#5f259f;font-weight:700;font-size:13px;">🔑 PIN bhool gaye? Owner ko request bhejein</a></p>
+      <p id="rlMsg" style="font-size:13px;text-align:center;margin-top:6px;"></p>
+    </div>
+    <div style="padding:16px;display:none;" id="riderDutyBody">
+      <h3 id="rdName" style="text-align:center;color:var(--maroon);margin:0 0 4px;"></h3>
+      <p id="rdStatus" style="text-align:center;font-weight:800;font-size:18px;margin:6px 0 14px;"></p>
+      <button class="btn" style="width:100%;background:var(--teal);margin-bottom:8px;" onclick="riderSetDuty('ON')">🟢 Aaj Duty ON</button>
+      <button class="btn" style="width:100%;background:var(--nonveg);margin-bottom:14px;" onclick="riderSetDuty('OFF')">🔴 Aaj Duty OFF (chhutti)</button>
+      <div style="display:flex;gap:8px;">
+        <input id="rdNewPin" type="password" inputmode="numeric" maxlength="4" placeholder="Naya 4-digit PIN" style="flex:1;padding:10px;border:1px solid #d9c9a8;border-radius:10px;">
+        <button class="small-btn" style="padding:10px 12px;background:var(--maroon);color:#fff;border-radius:10px;" onclick="riderChangePin()">PIN Badlein</button>
+      </div>
+      <p id="rdMsg" style="font-size:13px;text-align:center;margin-top:8px;"></p>
+    </div>
+  </div>
+</div>
+
 <div class="page-overlay" id="pageOverlay">
   <div class="page-box">
     <div class="page-head">
@@ -1155,6 +1184,16 @@
         <p style="font-size:11px;color:#8a7a63;margin-top:6px;">Sirf Sheet se add kiye products edit honge. Save ke baad Google Sheet me turant update — sab customers ko naya rate dikhega (page refresh par).</p>
       </div>
       <div class="admin-card">
+        <label>🛵 Riders Duty (aaj kaun ON hai)</label>
+        <div id="ridersDutyList"></div>
+        <button class="small-btn" style="margin-top:6px;padding:8px 12px;background:var(--maroon);color:#fff;border-radius:10px;" onclick="renderRidersDuty()">🔄 Refresh</button>
+      </div>
+      <div class="admin-card">
+        <label>💰 Payments — UPI/UTR Check</label>
+        <div id="paymentsList" style="max-height:260px;overflow-y:auto;font-size:13px;"></div>
+        <p style="font-size:11px;color:#8a7a63;margin-top:4px;">PhonePe ek baar kholo, UTR milao, ✔️ dabao. Verified orders hare ho jaate hain.</p>
+      </div>
+      <div class="admin-card">
         <label>📊 Aaj ka Hisaab (Daily Report)</label>
         <button class="btn" onclick="showDailyReport()">📊 Aaj ki Report Dikhao</button>
         <div id="dailyReportBox" style="font-size:13px;margin-top:8px;"></div>
@@ -1258,7 +1297,9 @@ const DEMO_VIDEO_DATA = "";
 const CONFIG = {
   upiId: "paytmqr6oztgr@ptys",           // <-- Paytm UPI ID
   whatsappNumber: "919076769441",  // <-- restaurant WhatsApp number (country code + number, no +)
-  deliveryCharge: 30,
+  deliveryCharge: 35,                 // fallback (location na mile to)
+  storeLat: 28.3670, storeLng: 77.3200,  // <-- Bake 'N' Wok, Dayal Nagar ki EXACT location yahan daalein (Google Maps se)
+  delBaseKm: 2, delBaseFee: 35, delPerKm: 15, delMaxKm: 8,  // Rapido ke barabar: 2 km tak ₹35, phir ₹15/km, max 8 km
   deliveryEstimateMinutes: 30, // shown on the Track Order screen countdown
   deliveryAvailable: true, // toggle from Admin > Settings
   shopOpen: true,          // when false, shows "closed" banner and blocks new orders
@@ -1452,6 +1493,130 @@ async function epSave(){
   renderMenu(); epPopulate(); renderQuickStock();
   alert('⏳ Bhej diya! 3 second me Sheet se confirm karke bataungi…');
   verifySheetSave(m.name, price);
+}
+
+/* ---------- Rider Login: duty ON/OFF (phone + PIN) ---------- */
+let _riderSession = null;
+function openRiderLogin(){
+  document.getElementById('riderLoginOverlay').classList.add('show');
+  document.getElementById('riderLoginBody').style.display = '';
+  document.getElementById('riderDutyBody').style.display = 'none';
+}
+async function riderLogin(){
+  const phone = (document.getElementById('rlPhone').value||'').replace(/\D/g,'');
+  const pin = (document.getElementById('rlPin').value||'').trim();
+  const msg = document.getElementById('rlMsg');
+  if(phone.length !== 10){ msg.textContent='❌ 10-digit phone daalein.'; msg.style.color='#c0392b'; return; }
+  msg.textContent='⏳ Login ho raha hai…'; msg.style.color='#8a7a63';
+  try{
+    const r = await jsonpGet({get:'riderLogin', phone: phone, pin: pin});
+    if(r && r.ok){
+      _riderSession = { phone, pin, name: r.name };
+      document.getElementById('riderLoginBody').style.display = 'none';
+      document.getElementById('riderDutyBody').style.display = '';
+      document.getElementById('rdName').textContent = '🛵 ' + r.name;
+      showRiderDuty(r.duty);
+      msg.textContent='';
+    } else if(r && r.error === 'notfound'){
+      msg.textContent='❌ Yeh number registered nahi — pehle "Delivery Partner Banein" se register karein.'; msg.style.color='#c0392b';
+    } else if(r && r.error === 'noriders'){
+      msg.textContent='❌ Abhi koi rider registered nahi hai.'; msg.style.color='#c0392b';
+    } else {
+      msg.textContent='❌ Galat PIN. (Pehli baar: phone ke aakhri 4 digit)'; msg.style.color='#c0392b';
+    }
+  }catch(e){ msg.textContent='❌ Net problem — dobara try karein.'; msg.style.color='#c0392b'; }
+}
+function showRiderDuty(duty){
+  const st = document.getElementById('rdStatus');
+  st.textContent = duty === 'OFF' ? '🔴 Aaj aap OFF ho' : '🟢 Aaj aap ON ho';
+  st.style.color = duty === 'OFF' ? '#c0392b' : '#0b7a5e';
+}
+async function riderSetDuty(duty){
+  if(!_riderSession) return;
+  const msg = document.getElementById('rdMsg');
+  msg.textContent='⏳…'; msg.style.color='#8a7a63';
+  try{
+    const r = await jsonpGet({get:'riderDuty', phone:_riderSession.phone, pin:_riderSession.pin, duty:duty});
+    if(r && r.ok){
+      showRiderDuty(r.duty);
+      msg.textContent = duty==='OFF' ? '✅ OFF ho gaya — owner ko khabar bhej di.' : '✅ ON ho gaya — aaj kaam par!';
+      msg.style.color='#0b7a5e';
+    } else { msg.textContent='❌ Nahi hua — dobara try karein.'; msg.style.color='#c0392b'; }
+  }catch(e){ msg.textContent='❌ Net problem.'; msg.style.color='#c0392b'; }
+}
+async function riderChangePin(){
+  if(!_riderSession) return;
+  const newP = (document.getElementById('rdNewPin').value||'').trim();
+  const msg = document.getElementById('rdMsg');
+  if(!/^\d{4}$/.test(newP)){ msg.textContent='❌ PIN 4 digit ka ho.'; msg.style.color='#c0392b'; return; }
+  try{
+    const r = await jsonpGet({get:'riderPinChange', phone:_riderSession.phone, pin:_riderSession.pin, newPin:newP});
+    if(r && r.ok){ _riderSession.pin = newP; msg.textContent='✅ Naya PIN set!'; msg.style.color='#0b7a5e'; document.getElementById('rdNewPin').value=''; }
+    else { msg.textContent='❌ Nahi hua.'; msg.style.color='#c0392b'; }
+  }catch(e){ msg.textContent='❌ Net problem.'; msg.style.color='#c0392b'; }
+}
+async function riderForgotPin(){
+  const phone = (document.getElementById('rlPhone').value||'').replace(/\D/g,'');
+  const msg = document.getElementById('rlMsg');
+  if(phone.length !== 10){ msg.textContent='❌ Pehle apna 10-digit phone upar daalein, phir yeh link dabayein.'; msg.style.color='#c0392b'; return; }
+  try{
+    const r = await jsonpGet({get:'riderForgot', phone: phone});
+    msg.textContent = (r && r.ok) ? '✅ Owner ko request bhej di — woh PIN reset karke aapko bata denge.' : '❌ Yeh number registered nahi.';
+    msg.style.color = (r && r.ok) ? '#0b7a5e' : '#c0392b';
+  }catch(e){ msg.textContent='❌ Net problem.'; msg.style.color='#c0392b'; }
+}
+
+/* ---------- Admin: Riders duty list ---------- */
+async function renderRidersDuty(){
+  const el = document.getElementById('ridersDutyList');
+  if(!el) return;
+  try{
+    const r = await jsonpGet({get:'ridersDuty', secret: CONFIG.adminSecret});
+    if(!r || !r.ok || !r.riders || !r.riders.length){ el.innerHTML='<p style="color:#8a7a63;font-size:12px;">Abhi koi rider registered nahi.</p>'; return; }
+    const onCount = r.riders.filter(x=>x.duty!=='OFF').length;
+    el.innerHTML = (onCount===0 ? '<p style="color:#c0392b;font-weight:800;">⚠️ Aaj koi rider ON nahi — Delivery OFF kar dein!</p>' : '') +
+      r.riders.map(x=>`<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px dashed #eadfc8;font-size:13px;">
+        <span>${x.name} <span style="color:#8a7a63;">(${x.phone})</span></span>
+        <b style="color:${x.duty==='OFF'?'#c0392b':'#0b7a5e'};">${x.duty==='OFF'?'🔴 OFF':'🟢 ON'}</b>
+      </div>`).join('');
+  }catch(e){ el.innerHTML='<p style="color:#8a7a63;font-size:12px;">Load nahi hua.</p>'; }
+}
+
+/* ---------- Payments list (UTR ek jagah — PhonePe baar-baar kholna band) ---------- */
+function extractUTR(status){
+  const m = String(status||'').match(/UTR:\s*(\d{12})/);
+  return m ? m[1] : '';
+}
+function renderPayments(){
+  const el = document.getElementById('paymentsList');
+  if(!el) return;
+  const t0 = new Date(); t0.setHours(0,0,0,0);
+  const recent = ORDERS.filter(o => (o.ts||0) >= t0.getTime() - 86400000); // aaj + kal
+  if(!recent.length){ el.innerHTML = '<p style="color:#8a7a63;">Abhi koi order nahi.</p>'; return; }
+  el.innerHTML = recent.map(o=>{
+    const utr = extractUTR(o.status);
+    const verified = /Payment Verified/i.test(o.status||'');
+    return `<div style="display:flex;align-items:center;justify-content:space-between;gap:6px;padding:7px 0;border-bottom:1px dashed #eadfc8;${verified?'background:#eaf7ef;border-radius:8px;padding-left:6px;':''}">
+      <div style="min-width:0;">
+        <b>#${o.orderId}</b> ${o.name||''} — <b>₹${o.total}</b><br>
+        <span style="font-size:12px;color:${utr?'#0b7a5e':'#c0392b'};">${utr ? '🔖 UTR: <b style="user-select:all;">'+utr+'</b>' : '⚠️ UTR nahi (payment pakki nahi)'}</span>
+      </div>
+      ${verified
+        ? '<span style="color:#0b7a5e;font-weight:800;white-space:nowrap;">✔️ Verified</span>'
+        : `<button class="small-btn" style="background:var(--teal);color:#fff;padding:7px 10px;border-radius:10px;white-space:nowrap;" onclick="markPaymentVerified('${o.orderId}')">✔️ Verify</button>`}
+    </div>`;
+  }).join('');
+}
+async function markPaymentVerified(orderId){
+  if(!(await askTogglePin())) return;
+  const o = ORDERS.find(x=>String(x.orderId)===String(orderId));
+  if(!o) return;
+  const utr = extractUTR(o.status);
+  const newStatus = 'Payment Verified' + (utr ? ' (UTR: '+utr+')' : '');
+  o.status = newStatus;
+  sheetPost({action:'updateStatus', orderId: orderId, status: newStatus});
+  renderPayments();
+  refreshAdminOrders();
 }
 
 /* ---------- Daily Sales Report ---------- */
@@ -1798,6 +1963,10 @@ function scrollToCatFromGrid(cat){
 
 let currentMode = 'delivery';
 function setMode(mode){
+  if(mode==='delivery' && CONFIG.deliveryAvailable && _custDistKm === null){
+    // Pehli baar delivery chunne par location se charge nikalo
+    detectDistance().then(()=>{ try{ renderBill('cartBill', false); renderBill('checkoutBill', true); }catch(e){} });
+  }
   if(mode==='delivery' && !CONFIG.deliveryAvailable){
     alert("Abhi sirf Pickup service hai 🏪\n\nGhar par mangwana ho to:\n1. Order Pickup me lagayein\n2. Rapido ya Porter app se parcel pickup book karein\n3. Rider hamare store se aapka khana ghar pahuncha dega 🛵");
     return;
@@ -2231,20 +2400,53 @@ function saveHappy(){
   alert("Happy Hours set! ✅ (On karna na bhoolein)");
 }
 
+/* ---------- Location se delivery charge (Rapido-style) ----------
+   2 km tak ₹30 (minimum), phir ₹10 per km. Customer ki GPS location se
+   store tak ki doori nikal kar charge apne aap lagta hai. */
+let _custDistKm = null;   // null = location nahi mili (fallback ₹30)
+function haversineKm(lat1,lng1,lat2,lng2){
+  const R=6371, dLat=(lat2-lat1)*Math.PI/180, dLng=(lng2-lng1)*Math.PI/180;
+  const a=Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLng/2)**2;
+  return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
+}
+function distanceFee(km){
+  if(km == null) return CONFIG.deliveryCharge;   // location nahi → minimum ₹30
+  const extra = Math.max(0, Math.ceil(km - CONFIG.delBaseKm));
+  return CONFIG.delBaseFee + extra * CONFIG.delPerKm;
+}
+function detectDistance(){
+  return new Promise((resolve)=>{
+    if(!navigator.geolocation){ resolve(); return; }
+    navigator.geolocation.getCurrentPosition(
+      (pos)=>{
+        const km = haversineKm(pos.coords.latitude, pos.coords.longitude, CONFIG.storeLat, CONFIG.storeLng);
+        // Road distance seedhi doori se ~25% zyada hoti hai
+        _custDistKm = Math.round(km * 1.25 * 10) / 10;
+        if(_custDistKm > CONFIG.delMaxKm){
+          alert('Maaf kijiye — aap ' + _custDistKm + ' km door hain, hum abhi ' + CONFIG.delMaxKm + ' km tak hi deliver karte hain 🙏 Pickup try karein!');
+        }
+        resolve();
+      },
+      ()=>{ _custDistKm = null; resolve(); },   // deny/fail → fallback
+      { enableHighAccuracy:true, timeout:8000, maximumAge:120000 }
+    );
+  });
+}
 function computeBill(){
   const items = cartItemsList();
   const subtotal = cartSubtotal();
   const discount = couponDiscount(subtotal);
   const happy = happyDiscount(subtotal);
   const loyal = loyaltyDiscount();
-  const delivery = (items.length && currentMode==='delivery') ? CONFIG.deliveryCharge : 0;
+  const delivery = (items.length && currentMode==='delivery') ? distanceFee(_custDistKm) : 0;
   const total = Math.max(0, subtotal - discount - happy - loyal + delivery);
   return { items, subtotal, discount, happy, loyal, delivery, total };
 }
 
 function renderBill(targetId, includeCheckoutInfo){
   const b = computeBill();
-  const deliveryLabel = currentMode==='pickup' ? t('pickup_nocharge') : t('delivery_charge');
+  let deliveryLabel = currentMode==='pickup' ? t('pickup_nocharge') : t('delivery_charge');
+  if(currentMode==='delivery' && _custDistKm != null) deliveryLabel += ` (~${_custDistKm} km)`;
   document.getElementById(targetId).innerHTML = `
     <div class="bill-row"><span>${t('subtotal')}</span><span>₹${b.subtotal}</span></div>
     ${b.discount ? `<div class="bill-row" style="color:#1f6b5e;"><span>${t('coupon')} (${appliedCoupon})</span><span>− ₹${b.discount}</span></div>` : ''}
@@ -2687,6 +2889,7 @@ function openAdminPanel(){
   document.getElementById('storeScreen').style.display = 'none';
   document.getElementById('adminScreen').style.display = 'block';
   renderAdminMenu();
+  renderRidersDuty();
   epPopulate();          // Edit Product dropdown yahin bhar jaayega (Sheet ka wait nahi)
   renderQuickStock();    // Stock fast-list bhi
   refreshAdminOrders();
@@ -3082,6 +3285,7 @@ function renderKDS(){
 
 function refreshAdminOrders(){
   checkNewOrders();
+  renderPayments();
   renderKDS();
   const list = document.getElementById('adminOrdersList');
   const now = new Date();
@@ -3261,31 +3465,66 @@ async function setOrderSound(on, skipConfirm){
   if(on && !skipConfirm){ playBeep(); zaraSpeak('ऑर्डर अलर्ट चालू! नया ऑर्डर आते ही मैं बोल कर बताऊंगी।'); } // unlock audio + confirm
 }
 /* Zara ki awaaz — naya order bol kar batati hai (browser ki built-in Hindi voice, free) */
+/* Hinglish → Devanagari (bolne ke liye) — pronunciation sahi hota hai */
+function hinglishForSpeech(t){
+  const map = [
+    [/\bho gaya\b/gi,'हो गया'],[/\bho gayi\b/gi,'हो गयी'],[/\bdaal diya\b/gi,'डाल दिया'],[/\bcart me\b/gi,'कार्ट में'],
+    [/\bnamaste\b/gi,'नमस्ते'],[/\bmain\b/gi,'मैं'],[/\bhoon\b/gi,'हूँ'],[/\bhai\b/gi,'है'],[/\bhain\b/gi,'हैं'],
+    [/\baapka\b/gi,'आपका'],[/\baapki\b/gi,'आपकी'],[/\baap\b/gi,'आप'],[/\bkya\b/gi,'क्या'],[/\bkaun\b/gi,'कौन'],
+    [/\border\b/gi,'ऑर्डर'],[/\bmenu\b/gi,'मेन्यू'],[/\btotal\b/gi,'टोटल'],[/\btoken\b/gi,'टोकन'],
+    [/\brupaye\b/gi,'रुपये'],[/\bdelivery\b/gi,'डिलीवरी'],[/\bpickup\b/gi,'पिकअप'],[/\bstatus\b/gi,'स्टेटस'],
+    [/\bkhana\b/gi,'खाना'],[/\bbatao\b/gi,'बताओ'],[/\bbolo\b/gi,'बोलो'],[/\bloge\b/gi,'लोगे'],[/\blungi\b/gi,'लूंगी'],
+    [/\bkarti\b/gi,'करती'],[/\bkaro\b/gi,'करो'],[/\bkarein\b/gi,'करें'],[/\bsakti\b/gi,'सकती'],[/\bsakte\b/gi,'सकते'],
+    [/\bhumare paas\b/gi,'हमारे पास'],[/\bhum\b/gi,'हम'],[/\babhi\b/gi,'अभी'],[/\bband\b/gi,'बंद'],
+    [/\bthodi der\b/gi,'थोड़ी देर'],[/\bbaad\b/gi,'बाद'],[/\bpasand\b/gi,'पसंद'],[/\bzaroor\b/gi,'ज़रूर'],
+    [/\biske saath\b/gi,'इसके साथ'],[/\bnaam\b/gi,'नाम'],[/\bmilega\b/gi,'मिलेगा'],[/\bmila\b/gi,'मिला'],
+    [/\bnahi\b/gi,'नहीं'],[/\bmujhe\b/gi,'मुझे'],[/\bmera\b/gi,'मेरा'],[/\bmeri\b/gi,'मेरी'],
+    [/\bshop\b/gi,'शॉप'],[/\bsuggest\b/gi,'सजेस्ट'],[/\bsteamed\b/gi,'स्टीम्ड'],[/\bfried\b/gi,'फ्राइड'],
+    [/\bveg\b/gi,'वेज'],[/\bpaneer\b/gi,'पनीर'],[/\bmomos\b/gi,'मोमोज़'],[/\bpizza\b/gi,'पिज़्ज़ा'],
+    [/\bchowmein\b/gi,'चाउमीन'],[/\bburger\b/gi,'बर्गर'],[/\bhalf\b/gi,'हाफ'],[/\bfull\b/gi,'फुल']
+  ];
+  let out = t;
+  map.forEach(([re,rep])=>{ out = out.replace(re,rep); });
+  return out;
+}
+
+/* Bolne ka queue system — lambi baat chhote tukdon me, poori bolegi */
+let _speakQueue = [];
+let _speaking = false;
+function _speakNext(){
+  if(!_speakQueue.length){ _speaking = false; return; }
+  _speaking = true;
+  const chunk = _speakQueue.shift();
+  const u = new SpeechSynthesisUtterance(chunk);
+  u.lang = 'hi-IN';
+  u.rate = 0.95; u.pitch = 1.1; u.volume = 1;
+  const vs = window.speechSynthesis.getVoices();
+  const v = vs.find(x=>x.lang==='hi-IN' && /google/i.test(x.name))
+         || vs.find(x=>x.lang==='hi-IN')
+         || vs.find(x=>x.lang && x.lang.indexOf('hi')===0);
+  if(v) u.voice = v;
+  u.onend = ()=> setTimeout(_speakNext, 150);
+  u.onerror = ()=> setTimeout(_speakNext, 150);
+  window.speechSynthesis.speak(u);
+}
 function zaraSpeak(text){
   try{
     if(!('speechSynthesis' in window)) return;
-    window.speechSynthesis.cancel();  // pichla bolna rok do
-    const u = new SpeechSynthesisUtterance(text);
-    u.lang = 'hi-IN';
-    u.rate = 0.95; u.pitch = 1.1; u.volume = 1;
-    const pick = ()=>{
-      const vs = window.speechSynthesis.getVoices();
-      const v = vs.find(x=>x.lang==='hi-IN' && /google/i.test(x.name))
-             || vs.find(x=>x.lang==='hi-IN')
-             || vs.find(x=>x.lang && x.lang.indexOf('hi')===0);
-      if(v) u.voice = v;
-      // Android Chrome bug: cancel() ke turant baad speak() chup ho jaata hai —
-      // isliye 120ms ka gap, aur lambi baat par pause hone se bachne ke liye resume-timer
-      setTimeout(()=>{
-        window.speechSynthesis.speak(u);
-        const keepAlive = setInterval(()=>{
-          if(!window.speechSynthesis.speaking){ clearInterval(keepAlive); return; }
-          window.speechSynthesis.pause(); window.speechSynthesis.resume();
-        }, 10000);
-      }, 120);
-    };
-    if(window.speechSynthesis.getVoices().length) pick();
-    else window.speechSynthesis.onvoiceschanged = ()=>{ window.speechSynthesis.onvoiceschanged=null; pick(); };
+    window.speechSynthesis.cancel();   // nayi baat — purani rok do
+    _speakQueue = [];
+    const spoken = hinglishForSpeech(String(text));
+    // Sentence/comma par 160-char ke tukde banao (Android TTS lambi line par ruk jaata hai)
+    const parts = spoken.split(/(?<=[।.!?;])\s+|\n+/).filter(Boolean);
+    let buf = '';
+    parts.forEach(p=>{
+      if((buf + ' ' + p).length > 160){ if(buf) _speakQueue.push(buf.trim()); buf = p; }
+      else buf = buf ? buf + ' ' + p : p;
+    });
+    if(buf.trim()) _speakQueue.push(buf.trim());
+    _speakQueue = _speakQueue.slice(0, 8);  // had se lambi speech nahi (8 tukde ~ kaafi)
+    const start = ()=> setTimeout(_speakNext, 130);  // cancel ke baad gap zaroori (Android bug)
+    if(window.speechSynthesis.getVoices().length) start();
+    else window.speechSynthesis.onvoiceschanged = ()=>{ window.speechSynthesis.onvoiceschanged = null; start(); };
   }catch(e){ /* voice not available */ }
 }
 function announceOrder(o){
@@ -3374,7 +3613,7 @@ function zaraSpeakReply(text){
     .replace(/\bx\b/gi,' ')
     .replace(/\s+/g,' ').trim();
   if(!t) return;
-  if(t.length > 220) t = t.slice(0, 220) + '…';  // bahut lamba jawab poora mat bolo
+  if(t.length > 900) t = t.slice(0, 900);  // sirf bahut hi lambe (pura menu) par limit
   zaraSpeak(t);
 }
 function addZaraMsg(who, text){
@@ -4254,10 +4493,73 @@ if(GA4_ID){
   gtag('config', GA4_ID);
 }
 
+/* ============ 📲 App Download/Install button ============
+   QR scan karke browser me aane wale ko install ka option —
+   Android: ek tap install | iPhone: aasan instructions      */
+let _installEvt = null;
+window.addEventListener('beforeinstallprompt', (e)=>{
+  e.preventDefault();
+  _installEvt = e;
+  showInstallBtn();
+});
+function isAppInstalled(){
+  return window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+}
+function showInstallBtn(){
+  if(isAppInstalled() || document.getElementById('bnwInstallBtn')) return;
+  const b = document.createElement('button');
+  b.id = 'bnwInstallBtn';
+  b.innerHTML = '📲 App Download karein';
+  b.style.cssText = 'position:fixed;bottom:86px;left:12px;z-index:9000;background:linear-gradient(135deg,#0b7a5e,#0a5c47);color:#fff;border:none;border-radius:30px;padding:12px 18px;font-weight:800;font-size:14px;box-shadow:0 6px 20px rgba(0,0,0,.3);font-family:inherit;';
+  b.onclick = installApp;
+  document.body.appendChild(b);
+}
+async function installApp(){
+  if(_installEvt){
+    _installEvt.prompt();
+    const res = await _installEvt.userChoice.catch(()=>null);
+    if(res && res.outcome === 'accepted'){
+      const b = document.getElementById('bnwInstallBtn');
+      if(b) b.remove();
+    }
+    _installEvt = null;
+    return;
+  }
+  // iPhone / jahan auto-install nahi hota — aasan instructions
+  const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
+  alert(isIOS
+    ? "iPhone par install karne ke liye:\n\n1. Neeche Share button dabayein (⬆️ wala)\n2. 'Add to Home Screen' chunein\n3. 'Add' dabayein\n\nBas! App home screen par aa jayega 📲"
+    : "Install karne ke liye:\n\n1. Browser ka ⋮ menu kholein\n2. 'Add to Home screen' / 'Install app' chunein\n\nBas! App home screen par aa jayega 📲");
+}
+// iPhone par beforeinstallprompt nahi aata — wahan bhi button dikhao
+window.addEventListener('load', ()=>{
+  setTimeout(()=>{
+    const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
+    if(isIOS && !isAppInstalled()) showInstallBtn();
+  }, 3000);
+});
+// Install ho jaane par button hata do
+window.addEventListener('appinstalled', ()=>{
+  const b = document.getElementById('bnwInstallBtn');
+  if(b) b.remove();
+});
+
 // Register service worker for PWA (offline + installable). Only works over http/https, not file://
+// + AUTO-UPDATE: naya version aate hi app khud refresh ho jaata hai — customer ko hamesha naya dikhega
 if('serviceWorker' in navigator){
-  window.addEventListener('load', ()=>{
-    navigator.serviceWorker.register('sw.js').catch(()=>{});
+  window.addEventListener('load', async ()=>{
+    try{
+      const reg = await navigator.serviceWorker.register('sw.js', {updateViaCache:'none'});
+      // Har 3 minute me + wapas app kholne par naya version check karo
+      setInterval(()=>reg.update().catch(()=>{}), 180000);
+      document.addEventListener('visibilitychange', ()=>{ if(!document.hidden) reg.update().catch(()=>{}); });
+      // Naya version activate hote hi ek baar page reload (customer ko turant naya app)
+      let reloaded = false;
+      navigator.serviceWorker.addEventListener('controllerchange', ()=>{
+        if(reloaded) return; reloaded = true;
+        location.reload();
+      });
+    }catch(e){}
   });
 }
 </script>
