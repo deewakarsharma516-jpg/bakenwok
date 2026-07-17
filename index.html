@@ -1449,8 +1449,9 @@ async function epSave(){
   if(img) m.img = img;
   if(desc) m.desc = desc;
   m.stock = epStock;
-  renderMenu(); epPopulate();
-  alert('✅ Save ho gaya! Google Sheet me update ho raha hai — customers ko refresh par naya rate dikhega.');
+  renderMenu(); epPopulate(); renderQuickStock();
+  alert('⏳ Bhej diya! 3 second me Sheet se confirm karke bataungi…');
+  verifySheetSave(m.name, price);
 }
 
 /* ---------- Daily Sales Report ---------- */
@@ -1798,7 +1799,7 @@ function scrollToCatFromGrid(cat){
 let currentMode = 'delivery';
 function setMode(mode){
   if(mode==='delivery' && !CONFIG.deliveryAvailable){
-    alert("Delivery is currently unavailable. Please choose Pickup instead.");
+    alert("Abhi sirf Pickup service hai 🏪\n\nGhar par mangwana ho to:\n1. Order Pickup me lagayein\n2. Rapido ya Porter app se parcel pickup book karein\n3. Rider hamare store se aapka khana ghar pahuncha dega 🛵");
     return;
   }
   currentMode = mode;
@@ -1810,7 +1811,7 @@ function updateDeliveryStatusUI(){
   const banner = document.getElementById('deliveryStatusBanner');
   const deliveryBtn = document.getElementById('modeDelivery');
   if(!CONFIG.shopOpen){
-    banner.innerHTML = `<div class="delivery-status off">🔴 Aaj hum band hain — abhi order nahi le sakte. Baad me aana! 🙏</div>`;
+    banner.innerHTML = `<div class="delivery-status off">🟠 Abhi restaurant band hai — jaise hi khulega, yahin order shuru ho jayega. Thodi der baad zaroor aayein! 🙏</div>`;
     if(deliveryBtn){ deliveryBtn.disabled = true; deliveryBtn.style.opacity = .5; }
     return;
   }
@@ -1819,7 +1820,8 @@ function updateDeliveryStatusUI(){
     deliveryBtn.disabled = false;
     deliveryBtn.style.opacity = 1;
   } else {
-    banner.innerHTML = `<div class="delivery-status off">🔴 Delivery is currently unavailable — Pickup only</div>`;
+    banner.innerHTML = `<div class="delivery-status off" style="line-height:1.5;">🏪 <b>Abhi sirf Pickup service hai</b> — order karke store se le jayein.<br>
+      <span style="font-size:13px;">🛵 Ghar par mangwana ho? Order Pickup me lagayein, phir <b>Rapido</b> ya <b>Porter</b> app se parcel pickup book karein — rider hamare store se aapka khana ghar tak pahuncha dega.</span></div>`;
     deliveryBtn.disabled = true;
     deliveryBtn.style.opacity = .5;
     setMode('pickup');
@@ -1967,7 +1969,7 @@ function closeVariant(){
 
 function changeQty(id, delta){
   if(delta > 0 && !CONFIG.shopOpen){
-    alert("Sorry, hum abhi band hain — order nahi le sakte. Baad me aana! 🙏");
+    alert("Abhi restaurant band hai 🙏 Jaise hi khulega, order shuru ho jayega — thodi der baad try karein!");
     return;
   }
   cart[id] = (cart[id]||0) + delta;
@@ -2311,7 +2313,7 @@ function openCheckout(){
    PLACE ORDER + UPI QR
    ============================================================ */
 function placeOrder(){
-  if(!CONFIG.shopOpen){ alert("Sorry, hum abhi band hain. Baad me order karein 🙏"); return; }
+  if(!CONFIG.shopOpen){ alert("Abhi restaurant band hai 🙏 Jaise hi khulega, order shuru ho jayega!"); return; }
   const name = document.getElementById('custName').value.trim();
   const phone = document.getElementById('custPhone').value.trim();
   const addr = document.getElementById('custAddr').value.trim();
@@ -2784,6 +2786,20 @@ function updateItem(id, field, value){
   if(field === 'name' && !item._origName) item._origName = item.name; // purana naam yaad rakho (Sheet me row dhundhne ke liye)
   item[field] = value;
 }
+/* Save hone ke baad Sheet se ASLI verification — jhootha "ho gaya" nahi bolenge */
+async function verifySheetSave(name, expectedPrice){
+  await new Promise(r=>setTimeout(r, 3000));
+  try{
+    const data = await jsonpGet({});
+    const p = (data && data.products || []).find(x => String(x.name).trim().toLowerCase() === String(name).trim().toLowerCase());
+    if(p && String(p.price) === String(expectedPrice)){
+      alert('✅ Pakka save ho gaya! Google Sheet me "' + name + '" ka naya rate ₹' + expectedPrice + ' dikh raha hai.');
+    } else {
+      alert('⚠️ DHYAN DO: Sheet me save NAHI hua!\n\nIska matlab naya Apps Script deploy nahi hua hai.\n\nKarna yeh hai:\n1. Google Sheet → Extensions → Apps Script\n2. Naya code paste karke Save\n3. Deploy → Manage deployments → ✏️ Edit → New version → Deploy\n\nUske baad dobara edit karke save karna.');
+    }
+  }catch(e){ /* net issue — kuch mat bolo */ }
+}
+
 /* Manage Menu card ka Save — PIN ke saath seedha Google Sheet me update */
 async function adminMenuSave(id){
   if(!(await askTogglePin())) return;
@@ -2796,7 +2812,8 @@ async function adminMenuSave(id){
     desc: m.desc || '', video: m.video || '', stock: m.stock !== false});
   m.fromSheet = true; m._origName = '';
   renderMenu(); renderAdminMenu(); epPopulate(); renderQuickStock();
-  alert('✅ "' + m.name + '" save ho gaya — Google Sheet me update, sab customers ko naya dikhega!');
+  alert('⏳ Bhej diya! 3 second me Sheet se confirm karke bataungi…');
+  verifySheetSave(m.name, m.price);
 }
 async function toggleStock(id){
   if(!(await askTogglePin())) return;
@@ -3137,14 +3154,13 @@ function initHeroVideo(){
    ============================================================ */
 /* ---- Admin toggle PIN: Google Sheet ke Config me save hai (default 2026),
         wahan se verify hota hai — code me kahin nahi likha ---- */
-let _pinOkUntil = 0;
+let _pinOkUntil = 0;   // (ab use nahi hota — har baar PIN poochha jaata hai)
 async function askTogglePin(){
-  if(Date.now() < _pinOkUntil) return true;   // 2 minute tak dobara nahi poochhega
   const p = prompt("🔒 4-digit PIN daalein:");
   if(p === null) return false;
   try{
     const r = await jsonpGet({action:'checkPin', secret: CONFIG.adminSecret, pin: String(p).trim()});
-    if(r && r.ok){ _pinOkUntil = Date.now() + 120000; return true; }
+    if(r && r.ok) return true;
   }catch(e){ alert("Net problem — dobara try karein."); return false; }
   alert("Galat PIN! ❌");
   return false;
@@ -3248,18 +3264,25 @@ async function setOrderSound(on, skipConfirm){
 function zaraSpeak(text){
   try{
     if(!('speechSynthesis' in window)) return;
-    window.speechSynthesis.cancel();  // pichla bolna rok do, naya shuru karo
+    window.speechSynthesis.cancel();  // pichla bolna rok do
     const u = new SpeechSynthesisUtterance(text);
     u.lang = 'hi-IN';
     u.rate = 0.95; u.pitch = 1.1; u.volume = 1;
-    // Hindi voice dhundo (Google हिन्दी / Microsoft Swara / koi bhi hi-IN)
     const pick = ()=>{
       const vs = window.speechSynthesis.getVoices();
       const v = vs.find(x=>x.lang==='hi-IN' && /google/i.test(x.name))
              || vs.find(x=>x.lang==='hi-IN')
              || vs.find(x=>x.lang && x.lang.indexOf('hi')===0);
       if(v) u.voice = v;
-      window.speechSynthesis.speak(u);
+      // Android Chrome bug: cancel() ke turant baad speak() chup ho jaata hai —
+      // isliye 120ms ka gap, aur lambi baat par pause hone se bachne ke liye resume-timer
+      setTimeout(()=>{
+        window.speechSynthesis.speak(u);
+        const keepAlive = setInterval(()=>{
+          if(!window.speechSynthesis.speaking){ clearInterval(keepAlive); return; }
+          window.speechSynthesis.pause(); window.speechSynthesis.resume();
+        }, 10000);
+      }, 120);
     };
     if(window.speechSynthesis.getVoices().length) pick();
     else window.speechSynthesis.onvoiceschanged = ()=>{ window.speechSynthesis.onvoiceschanged=null; pick(); };
