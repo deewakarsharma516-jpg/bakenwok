@@ -841,6 +841,8 @@
       📞 <a href="tel:9076769441">9076769441</a> &nbsp;·&nbsp;
       💬 <a href="https://wa.me/919076769441" target="_blank">WhatsApp</a>
     </div>
+    <div class="foot-contact" style="margin-top:4px;">🕐 Roz khula: 11:00 AM – 10:30 PM</div>
+    <div class="foot-contact" id="fssaiLine" style="display:none;">🛡️ FSSAI Lic. No.: <span id="fssaiNo"></span></div>
     <div class="foot-copy">© <span id="footYear"></span> Bake 'N' Wok. <span data-i18n="foot_rights">All rights reserved.</span></div>
     <div class="foot-admin"><a onclick="openAdminLogin()">Restaurant Admin Login</a></div>
   </footer>
@@ -1153,12 +1155,23 @@
         <p style="font-size:11px;color:#8a7a63;margin-top:6px;">Sirf Sheet se add kiye products edit honge. Save ke baad Google Sheet me turant update — sab customers ko naya rate dikhega (page refresh par).</p>
       </div>
       <div class="admin-card">
+        <label>📊 Aaj ka Hisaab (Daily Report)</label>
+        <button class="btn" onclick="showDailyReport()">📊 Aaj ki Report Dikhao</button>
+        <div id="dailyReportBox" style="font-size:13px;margin-top:8px;"></div>
+      </div>
+      <div class="admin-card">
+        <label>⚡ Stock Fast On/Off (ek tap me item hatao/lao)</label>
+        <div id="quickStockList" style="max-height:220px;overflow-y:auto;"></div>
+        <p style="font-size:11px;color:#8a7a63;margin-top:4px;">Sirf Sheet wale products. Tap karte hi Sheet me update.</p>
+      </div>
+      <div class="admin-card">
         <label>🔒 Toggle PIN Change (4 digit)</label>
         <div style="display:flex;gap:8px;margin-bottom:6px;">
           <input id="pinOld" type="password" maxlength="4" inputmode="numeric" placeholder="Purana PIN" style="flex:1;min-width:90px;">
           <input id="pinNew" type="password" maxlength="4" inputmode="numeric" placeholder="Naya PIN" style="flex:1;min-width:90px;">
         </div>
         <button class="btn" onclick="changeTogglePin()">💾 PIN Badlein</button>
+        <p style="font-size:12px;margin-top:6px;"><a href="#" onclick="forgotTogglePin(); return false;" style="color:#5f259f;font-weight:700;">🔑 PIN bhool gaye? Email OTP se reset karein</a></p>
         <p id="pinMsg" style="font-size:12px;margin-top:6px;"></p>
         <p style="font-size:11px;color:#8a7a63;margin-top:4px;">Yeh PIN sabhi on/off buttons par lagta hai. Google Sheet (Config tab) me surakshit rehta hai — default: 2026.</p>
       </div>
@@ -1399,7 +1412,7 @@ function epPopulate(){
   if(!sel) return;
   const keep = sel.value;
   sel.innerHTML = '<option value="">— Product chunein —</option>' +
-    MENU.filter(m=>m.fromSheet).map(m=>`<option value="${m.id}">${m.name} (₹${m.price})</option>`).join('');
+    MENU.map(m=>`<option value="${m.id}">${m.name} (₹${m.price})</option>`).join('');
   if(keep) sel.value = keep;
 }
 function epStockBtns(){
@@ -1429,14 +1442,64 @@ async function epSave(){
   const img = document.getElementById('epImg').value.trim();
   const desc = document.getElementById('epDesc').value.trim();
   // Sheet me update (name se match hota hai)
-  sheetPost({action:'updateProduct', name:m.name, price:price, priceHalf:half, img:img, desc:desc, stock:epStock});
+  sheetPost({action:'updateProduct', name:m.name, category:m.cat, price:price, priceHalf:half, img:img, desc:desc, stock:epStock});
   // Local turant update taaki aapko bhi dikhe
+  m.fromSheet = true;
   m.price = price; m.priceHalf = half || null;
   if(img) m.img = img;
   if(desc) m.desc = desc;
   m.stock = epStock;
   renderMenu(); epPopulate();
   alert('✅ Save ho gaya! Google Sheet me update ho raha hai — customers ko refresh par naya rate dikhega.');
+}
+
+/* ---------- Daily Sales Report ---------- */
+function showDailyReport(){
+  const t0 = new Date(); t0.setHours(0,0,0,0);
+  const today = ORDERS.filter(o => (o.ts||0) >= t0.getTime());
+  const box = document.getElementById('dailyReportBox');
+  if(!today.length){ box.innerHTML = '<p style="color:#8a7a63;">Aaj abhi tak koi order nahi.</p>'; return; }
+  let revenue = 0, delivered = 0, pending = 0, itemCount = {};
+  today.forEach(o=>{
+    revenue += Number(o.total)||0;
+    if(o.status === 'Delivered') delivered++; else pending++;
+    const txt = Array.isArray(o.items) ? o.items.map(i=>i.name+' x'+i.qty).join(', ') : String(o.items||'');
+    txt.split(',').forEach(part=>{
+      const m = part.trim().match(/^(.+?)\s*x\s*(\d+)$/i);
+      if(m) itemCount[m[1].trim()] = (itemCount[m[1].trim()]||0) + parseInt(m[2]);
+    });
+  });
+  const top = Object.entries(itemCount).sort((a,b)=>b[1]-a[1]).slice(0,3);
+  box.innerHTML = `
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:8px;">
+      <div style="background:#fff4ea;border-radius:10px;padding:8px;text-align:center;"><b style="font-size:18px;">${today.length}</b><br>Orders</div>
+      <div style="background:#eaf7ef;border-radius:10px;padding:8px;text-align:center;"><b style="font-size:18px;">₹${revenue}</b><br>Kamai</div>
+      <div style="background:#eef3fb;border-radius:10px;padding:8px;text-align:center;"><b style="font-size:18px;">${delivered}</b><br>Delivered</div>
+      <div style="background:#fdeeee;border-radius:10px;padding:8px;text-align:center;"><b style="font-size:18px;">${pending}</b><br>Pending</div>
+    </div>
+    ${top.length ? '<b>🔥 Aaj ke top items:</b><br>' + top.map((t,i)=>`${i+1}. ${t[0]} — ${t[1]} baar`).join('<br>') : ''}`;
+}
+
+/* ---------- Quick Stock toggle list ---------- */
+function renderQuickStock(){
+  const el = document.getElementById('quickStockList');
+  if(!el) return;
+  const items = MENU;
+  el.innerHTML = items.length ? items.map(m=>`
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:6px 0;border-bottom:1px dashed #eadfc8;">
+      <span style="font-size:13px;${m.stock===false?'color:#c0392b;text-decoration:line-through;':''}">${m.name}</span>
+      <button class="small-btn" style="padding:5px 12px;background:${m.stock===false?'var(--nonveg)':'var(--teal)'};color:#fff;border-radius:10px;"
+        onclick="quickStockToggle(${m.id})">${m.stock===false?'❌ Out':'✅ In'}</button>
+    </div>`).join('') : '<p style="color:#8a7a63;font-size:12px;">Sheet se products load hone par yahan dikhenge.</p>';
+}
+async function quickStockToggle(id){
+  if(!(await askTogglePin())) return;
+  const m = MENU.find(x=>x.id===id);
+  if(!m) return;
+  m.stock = m.stock === false ? true : false;
+  sheetPost({action:'updateProduct', name:m.name, category:m.cat, price:m.price, priceHalf:m.priceHalf||'', img:'', desc:'', stock:m.stock});
+  m.fromSheet = true;
+  renderMenu(); renderQuickStock(); epPopulate();
 }
 
 /* Admin toggle ko Google Sheet me save karo — har device par, refresh ke baad bhi same rahega */
@@ -1461,6 +1524,17 @@ async function loadProductsFromSheet(){
       data.products.forEach(p=>{
         if(!p.name) return;
         registerCategory(cleanText(p.category,40));
+        // Agar isi naam ka built-in product hai to usi ko update karo (duplicate se bacho)
+        const existing = MENU.find(x => x.name.toLowerCase().trim() === cleanText(p.name,60).toLowerCase().trim());
+        if(existing){
+          existing.fromSheet = true;
+          if(p.price) existing.price = Number(p.price) || existing.price;
+          if(p.priceHalf) existing.priceHalf = Number(p.priceHalf) || existing.priceHalf;
+          if(p.desc) existing.desc = cleanText(p.desc, 200);
+          if(p.img && String(p.img).startsWith('http')) existing.img = p.img;
+          existing.stock = p.stock;
+          return;   // forEach me continue ki jagah return
+        }
         MENU.push({
           id: nextItemId++,
           fromSheet: true,
@@ -1481,6 +1555,7 @@ async function loadProductsFromSheet(){
       renderVideoReels();
       populateCatSelect();
       epPopulate();
+      renderQuickStock();
     }
   }catch(err){ console.log('Sheet load skipped:', err); }
 }
@@ -2610,6 +2685,8 @@ function openAdminPanel(){
   document.getElementById('storeScreen').style.display = 'none';
   document.getElementById('adminScreen').style.display = 'block';
   renderAdminMenu();
+  epPopulate();          // Edit Product dropdown yahin bhar jaayega (Sheet ka wait nahi)
+  renderQuickStock();    // Stock fast-list bhi
   refreshAdminOrders();
   renderCouponAdmin();
   if(typeof renderDeliveryBoyAdmin==='function') renderDeliveryBoyAdmin();
@@ -2694,6 +2771,7 @@ function renderAdminMenu(){
         <input placeholder="Video link (.mp4 or YouTube) — optional" value="${item.video||''}" onchange="updateItem(${item.id},'video',this.value); renderMenu();">
       </div>
       <div class="admin-row">
+        <button class="small-btn" style="background:var(--teal);color:#fff;" onclick="adminMenuSave(${item.id})">💾 Save</button>
         <button class="small-btn toggle-btn" onclick="toggleStock(${item.id})">${item.stock?'Mark Out of Stock':'Mark In Stock'}</button>
         <button class="small-btn del-btn" onclick="deleteItem(${item.id})">Delete</button>
       </div>
@@ -2702,21 +2780,47 @@ function renderAdminMenu(){
 
 function updateItem(id, field, value){
   const item = MENU.find(m=>m.id===id);
-  if(item) item[field] = value;
+  if(!item) return;
+  if(field === 'name' && !item._origName) item._origName = item.name; // purana naam yaad rakho (Sheet me row dhundhne ke liye)
+  item[field] = value;
 }
-function toggleStock(id){
+/* Manage Menu card ka Save — PIN ke saath seedha Google Sheet me update */
+async function adminMenuSave(id){
+  if(!(await askTogglePin())) return;
+  const m = MENU.find(x=>x.id===id);
+  if(!m) return;
+  sheetPost({action:'updateProduct',
+    oldName: m._origName || m.name, name: m.name, category: m.cat,
+    price: m.price, priceHalf: m.priceHalf || '',
+    img: (m.img && m.img.startsWith('http') && !m.img.includes('placehold.co')) ? m.img : '',
+    desc: m.desc || '', video: m.video || '', stock: m.stock !== false});
+  m.fromSheet = true; m._origName = '';
+  renderMenu(); renderAdminMenu(); epPopulate(); renderQuickStock();
+  alert('✅ "' + m.name + '" save ho gaya — Google Sheet me update, sab customers ko naya dikhega!');
+}
+async function toggleStock(id){
+  if(!(await askTogglePin())) return;
   const item = MENU.find(m=>m.id===id);
   item.stock = !item.stock;
+  sheetPost({action:'updateProduct', oldName:item._origName||item.name, name:item.name, category:item.cat,
+    price:item.price, priceHalf:item.priceHalf||'', img:'', desc:'', stock:item.stock});
+  item.fromSheet = true;
   renderAdminMenu();
   renderMenu();
   renderVideoReels();
+  renderQuickStock();
 }
-function deleteItem(id){
+async function deleteItem(id){
+  if(!(await askTogglePin())) return;
   if(!confirm("Delete this item?")) return;
-  MENU = MENU.filter(m=>m.id!==id);
+  const m = MENU.find(x=>x.id===id);
+  if(m) sheetPost({action:'deleteProduct', name: m._origName || m.name});
+  MENU = MENU.filter(x=>x.id!==id);
   renderAdminMenu();
   renderMenu();
   renderVideoReels();
+  epPopulate();
+  renderQuickStock();
 }
 async function uploadProductPhoto(input){
   const file = input.files && input.files[0];
@@ -2749,7 +2853,8 @@ function previewNewItemImg(){
   }
 }
 
-function addMenuItem(){
+async function addMenuItem(){
+  if(!(await askTogglePin())) return;
   const name = document.getElementById('newItemName').value.trim();
   const price = parseInt(document.getElementById('newItemPrice').value);
   const cat = document.getElementById('newItemCat').value;
@@ -2759,7 +2864,7 @@ function addMenuItem(){
   const badge = document.getElementById('newItemBadge').value.trim();
   const priceHalf = parseInt(document.getElementById('newItemHalf').value) || null;
   if(!name || !price){ alert("Enter item name and price."); return; }
-  MENU.push({id: nextItemId++, cat, name, veg:"veg", price, desc, stock:true, img, video, badge, priceHalf});
+  MENU.push({id: nextItemId++, fromSheet:true, cat, name, veg:"veg", price, desc, stock:true, img, video, badge, priceHalf});
   sheetPost({action:'addProduct', category:cat, name, price, desc, img, video, stock:true, priceHalf});
   document.getElementById('newItemName').value = '';
   document.getElementById('newItemPrice').value = '';
@@ -2772,6 +2877,10 @@ function addMenuItem(){
   renderAdminMenu();
   renderMenu();
   renderVideoReels();
+  epPopulate();       // edit dropdown me turant dikhe
+  renderQuickStock(); // stock fast-list me turant dikhe
+  registerCategory(cat);
+  alert("✅ '" + name + "' add ho gaya! Rate/image badalna ho to ✏️ Edit Product me milega.");
 }
 
 /* ---------- ORDER STATUS FLOW ----------
@@ -2925,6 +3034,14 @@ function computeBestseller(){
 let kdsOn = false;
 function openKDS(){ kdsOn=true; renderKDS(); document.getElementById('kdsOverlay').classList.add('show'); }
 function closeKDS(){ kdsOn=false; document.getElementById('kdsOverlay').classList.remove('show'); }
+/* Order kitna purana — 20 min+ pending ho to laal warning */
+function orderAgeBadge(o){
+  if(!o.ts || o.status === 'Delivered') return '';
+  const mins = Math.floor((Date.now() - o.ts) / 60000);
+  if(mins < 1) return `<span style="background:#3d8b40;color:#fff;border-radius:10px;padding:2px 8px;font-size:11px;font-weight:700;">abhi aaya</span>`;
+  const late = mins >= 20;
+  return `<span style="background:${late?'#c0392b':'#e6b653'};color:${late?'#fff':'var(--maroon)'};border-radius:10px;padding:2px 8px;font-size:11px;font-weight:700;">${late?'⚠️ ':''}⏱️ ${mins} min</span>`;
+}
 function renderKDS(){
   if(!kdsOn) return;
   const t0 = new Date(); t0.setHours(0,0,0,0);
@@ -2938,7 +3055,7 @@ function renderKDS(){
     const itemsTxt = Array.isArray(o.items) ? o.items.map(i=>`${esc(i.name)} <b>x${i.qty}</b>`).join('<br>') : esc(o.items||'');
     return `<div class="kds-card">
       <div class="kds-top">${CONFIG.tokenEnabled && o.token ? `<span class="kds-token">🎫 #${o.token}</span>` : `#${o.orderId}`}
-        <span class="kds-mode">${o.mode==='delivery'?'🛵':'🏪'}</span></div>
+        ${orderAgeBadge(o)} <span class="kds-mode">${o.mode==='delivery'?'🛵':'🏪'}</span></div>
       <div class="kds-items">${itemsTxt}</div>
       <div class="kds-status" style="background:${statusColor(st)};">${esc(st)}</div>
       ${next ? `<button class="kds-next" onclick="setOrderStatus('${o.orderId}','${next}')">➡️ ${next}</button>` : ''}
@@ -2974,7 +3091,7 @@ function refreshAdminOrders(){
       ? `<a class="ost-map" href="https://www.google.com/maps?q=${encodeURIComponent(o.addr)}" target="_blank">🗺️ Map</a>` : '';
     return `
     <div class="order-card">
-      <div class="oid">Order #${o.orderId} — ₹${o.total} ${CONFIG.tokenEnabled && o.token ? `<span class="token-pill">🎫 #${o.token}</span>` : ''}</div>
+      <div class="oid">Order #${o.orderId} — ₹${o.total} ${CONFIG.tokenEnabled && o.token ? `<span class="token-pill">🎫 #${o.token}</span>` : ''} ${orderAgeBadge(o)}</div>
       <div style="font-size:12px;color:#8a7a63;margin:4px 0;">${o.time||''} · ${o.mode==='delivery'?'🛵 Delivery':'🏪 Pickup'}</div>
       <div style="font-size:13px;"><b>${esc(o.name)}</b> · ${esc(o.phone)}</div>
       <div style="font-size:12px;color:#8a7a63;">${esc(o.addr||'')}</div>
@@ -3032,6 +3149,34 @@ async function askTogglePin(){
   alert("Galat PIN! ❌");
   return false;
 }
+/* PIN bhool gaye — email OTP se reset */
+async function forgotTogglePin(){
+  const msg = document.getElementById('pinMsg');
+  msg.textContent = '⏳ OTP bheja ja raha hai aapke email par…'; msg.style.color = '#8a7a63';
+  try{
+    const r = await jsonpGet({action:'sendPinOtp', secret: CONFIG.adminSecret});
+    if(!r || !r.ok){ msg.textContent = '❌ OTP nahi bhej paaye — net check karke dobara try karein.'; msg.style.color = '#c0392b'; return; }
+  }catch(e){ msg.textContent = '❌ Net problem — dobara try karein.'; msg.style.color = '#c0392b'; return; }
+  msg.textContent = '📧 OTP bhej diya! Email (inbox/spam) check karein.'; msg.style.color = '#3d8b40';
+  const otp = prompt("📧 Email par aaya 6-digit OTP daalein:");
+  if(otp === null) return;
+  const newP = prompt("Naya 4-digit PIN daalein:");
+  if(newP === null) return;
+  if(!/^\d{4}$/.test(String(newP).trim())){ msg.textContent = '❌ Naya PIN 4 digit ka hona chahiye.'; msg.style.color = '#c0392b'; return; }
+  msg.textContent = '⏳ Verify ho raha hai…'; msg.style.color = '#8a7a63';
+  try{
+    const r2 = await jsonpGet({action:'verifyPinOtp', secret: CONFIG.adminSecret, otp: String(otp).trim(), newPin: String(newP).trim()});
+    if(r2 && r2.ok){
+      msg.textContent = '✅ Naya PIN set ho gaya! Ab sab buttons par yahi chalega.'; msg.style.color = '#3d8b40';
+      _pinOkUntil = 0;
+    } else if(r2 && r2.error === 'expired'){
+      msg.textContent = '❌ OTP expire ho gaya (10 min) — dobara "PIN bhool gaye" dabayein.'; msg.style.color = '#c0392b';
+    } else {
+      msg.textContent = '❌ Galat OTP — dobara try karein.'; msg.style.color = '#c0392b';
+    }
+  }catch(e){ msg.textContent = '❌ Net problem — dobara try karein.'; msg.style.color = '#c0392b'; }
+}
+
 /* PIN change — purana PIN + naya 4-digit PIN, Sheet me save */
 async function changeTogglePin(){
   const oldP = (document.getElementById('pinOld').value||'').trim();
@@ -3050,6 +3195,11 @@ async function changeTogglePin(){
     }
   }catch(e){ msg.textContent='❌ Net problem — dobara try karein.'; msg.style.color='#c0392b'; }
 }
+/* FSSAI license number — mile to yahan bharein, footer me apne aap dikhega */
+CONFIG.fssai = "";   // jaise: "23325001001234"
+setTimeout(()=>{ try{
+  if(CONFIG.fssai){ document.getElementById('fssaiNo').textContent = CONFIG.fssai; document.getElementById('fssaiLine').style.display=''; }
+}catch(e){} }, 400);
 let orderSoundOn = false;
 try{ orderSoundOn = localStorage.getItem('bnw_sound') === '1'; }catch(e){}
 let lastOrderCount = 0;
@@ -4037,6 +4187,25 @@ if(!isRiderLinkView){
   loadProductsFromSheet();
   loadOrdersFromSheet();
   renderRepeatBanner();
+  // Pehli baar aane wale ko welcome offer dikhaao (sirf ek baar)
+  try{
+    if(!localStorage.getItem('bnw_seen')){
+      localStorage.setItem('bnw_seen','1');
+      setTimeout(()=>{
+        const d = document.createElement('div');
+        d.id = 'welcomePop';
+        d.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;';
+        d.innerHTML = `<div style="background:#fff;border-radius:18px;padding:24px;max-width:320px;text-align:center;box-shadow:0 10px 40px rgba(0,0,0,.3);">
+          <div style="font-size:40px;">🎉</div>
+          <h3 style="margin:8px 0;color:var(--maroon);">Welcome to Bake 'N' Wok!</h3>
+          <p style="font-size:14px;color:#6b5b45;margin:6px 0 12px;">Pehle order par <b>₹50 OFF</b> (₹199+ ke order par)</p>
+          <div style="background:#fff4ea;border:2px dashed var(--gold);border-radius:10px;padding:10px;font-weight:800;font-size:18px;letter-spacing:1px;color:var(--maroon);">WELCOME50</div>
+          <button onclick="document.getElementById('welcomePop').remove()" style="margin-top:14px;background:var(--maroon);color:#fff;border:none;border-radius:12px;padding:12px 28px;font-weight:700;font-size:15px;">Order Karein 🍽️</button>
+        </div>`;
+        document.body.appendChild(d);
+      }, 2500);
+    }
+  }catch(e){}
   loadRatings();
   renderHappyBanner();
   renderTrackBanner();
