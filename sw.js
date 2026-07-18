@@ -6,7 +6,7 @@
    Naya version aate hi purana cache khud saaf + turant activate
    ============================================================ */
 
-const CACHE = "bnw-v2";   // <-- har bade update par yeh number badha dena (v3, v4...)
+const CACHE = "bnw-v3";   // <-- har bade update par yeh number badha dena (v3, v4...)
 
 self.addEventListener("install", (e) => {
   // Naya SW aate hi turant taiyaar — purane ka wait nahi
