@@ -1716,6 +1716,7 @@ async function quickStockToggle(id){
 /* Admin toggle ko Google Sheet me save karo — har device par, refresh ke baad bhi same rahega */
 function saveSetting(key, value){
   _recentlyChanged[key] = Date.now();
+  try{ localStorage.setItem('bnw_set_' + key, value ? '1' : '0'); }catch(e){}
   // JSONP se bhejo taaki confirm mile ki Sheet me sach me save hua (no-cors me pata nahi chalta tha)
   jsonpGet({action:'setSetting', secret: CONFIG.adminSecret, key:key, value: value ? 'TRUE' : 'FALSE'})
     .then(r=>{
@@ -1727,8 +1728,17 @@ function saveSetting(key, value){
     .catch(e=>{ console.log('Setting save net error:', e); });
 }
 function _justChanged(key){ return _recentlyChanged[key] && (Date.now() - _recentlyChanged[key] < 30000); }
+let _backendOldWarned = false;
 function applyServerSettings(st){
   if(!st) return;
+  if(st.ver !== '2'){
+    // Purana Apps Script deploy hai — iski default values se buttons ko WAPAS MAT palto
+    if(!_backendOldWarned && window._adminOpen){
+      _backendOldWarned = true;
+      alert('⚠️ ZAROORI: Naya Apps Script deploy nahi hua hai!\n\nIsi wajah se buttons apne aap wapas ON ho rahe the.\n\nKarna yeh hai:\n1. Google Sheet → Extensions → Apps Script\n2. Purana code delete, naya paste, Save\n3. Deploy → Manage deployments → ✏️ Edit → New version → Deploy\n\nTab tak settings sirf isi device par yaad rahengi.');
+    }
+    return;
+  }
   let changed = false;
   if(st.shopOpen !== undefined && !_justChanged('shopOpen')){ const v = st.shopOpen !== 'FALSE'; if(CONFIG.shopOpen !== v){ changed = true; } setShopOpen(v, true); }
   if(st.deliveryAvailable !== undefined && !_justChanged('deliveryAvailable')){ const v = st.deliveryAvailable !== 'FALSE'; if(CONFIG.deliveryAvailable !== v){ changed = true; } setDeliveryAvailability(v, true); }
@@ -3603,6 +3613,19 @@ setTimeout(()=>{ try{
 }catch(e){} }, 400);
 let orderSoundOn = false;
 try{ orderSoundOn = localStorage.getItem('bnw_sound') === '1'; }catch(e){}
+// Is device par pichhli baar set kiye toggles wapas lagao (server na ho tab bhi)
+try{
+  const _ls = k => localStorage.getItem('bnw_set_' + k);
+  if(_ls('shopOpen') !== null) CONFIG.shopOpen = _ls('shopOpen') === '1';
+  if(_ls('deliveryAvailable') !== null) CONFIG.deliveryAvailable = _ls('deliveryAvailable') === '1';
+  if(_ls('tokenEnabled') !== null) CONFIG.tokenEnabled = _ls('tokenEnabled') === '1';
+  setTimeout(()=>{ try{
+    setShopOpen(CONFIG.shopOpen, true);
+    setDeliveryAvailability(CONFIG.deliveryAvailable, true);
+    setTokenEnabled(CONFIG.tokenEnabled, true);
+    if(_ls('happyHour') !== null) setHappy(_ls('happyHour') === '1', true);
+  }catch(e){} }, 350);
+}catch(e){}
 let lastOrderCount = 0;
 // Refresh ke baad browser awaaz tabhi bajne deta hai jab user ek baar click/touch kare —
 // isliye pehli click par audio chupchap unlock kar lete hain
