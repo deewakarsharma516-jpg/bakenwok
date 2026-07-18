@@ -399,6 +399,7 @@
   .no-results{max-width:720px; margin:20px auto; padding:0 14px; text-align:center; color:#8a7a63;}
 
   /* ---------- ZARA AI ASSISTANT ---------- */
+  body.sheet-open .zara-fab{display:none !important;}
   .zara-fab{
     position:fixed; right:16px; bottom:88px; z-index:130;
     display:flex; align-items:center; gap:8px;
@@ -1051,6 +1052,14 @@
     </div>
     <a class="btn pay-now" id="payNowBtn" href="#" onclick="payNowTapped()">📲 <span data-i18n="pay_now">Pay Now — apna UPI app kholein</span></a>
     <p style="font-size:12px;color:#8a7a63;text-align:center;margin:-2px 0 10px;" data-i18n="pay_now_hint">Mobile par tap karte hi PhonePe / Paytm / GPay khul jaayega, amount bhara hua. Laptop par upar QR scan karein.</p>
+    <div style="background:#fff4ea;border:1px dashed var(--gold);border-radius:10px;padding:10px;margin:0 0 10px;">
+      <p style="font-size:12px;color:#6b5b45;margin:0 0 6px;"><b>Pay Now na chale?</b> (kuch banks intent link block karte hain) — UPI ID copy karke apni app se seedha bhejein:</p>
+      <div style="display:flex;gap:6px;align-items:center;">
+        <code id="upiIdShow" style="flex:1;background:#fff;border:1px solid #e6d9bd;border-radius:8px;padding:8px;font-size:13px;overflow:hidden;text-overflow:ellipsis;"></code>
+        <button class="small-btn" style="background:var(--maroon);color:#fff;padding:8px 12px;border-radius:8px;white-space:nowrap;" onclick="copyUpiId()">📋 Copy</button>
+      </div>
+      <p style="font-size:11px;color:#8a7a63;margin:6px 0 0;">UPI app kholein → "To UPI ID / Send Money" → paste karein → amount ₹<span id="payAmt3">0</span> bhejein → phir UTR yahan daalein.</p>
+    </div>
     <div style="margin:10px 0;">
       <input id="utrInput" maxlength="12" inputmode="numeric" placeholder="UPI Transaction ID / UTR (12 digit)" style="width:100%;padding:10px;border:1px solid #d9c9a8;border-radius:8px;">
       <p style="font-size:12px;color:#8a7a63;margin-top:4px;">💡 Payment app me "Transaction ID" ya "UTR" — 12 digit ka number. Iske bina order confirm nahi hoga.</p>
@@ -1232,6 +1241,7 @@
       <div class="admin-card">
         <label>🔍 System Check (problem khud dhundhega)</label>
         <button class="btn" onclick="runSystemCheck()">🔍 Check Chalao</button>
+        <button class="btn" style="margin-top:6px;background:var(--teal);" onclick="cleanDuplicates()">🧹 Duplicate Products Saaf Karo</button>
         <div id="sysCheckBox" style="font-size:13px;margin-top:8px;line-height:1.6;"></div>
       </div>
       <div class="admin-card">
@@ -1516,6 +1526,37 @@ async function epSave(){
   renderMenu(); epPopulate(); renderQuickStock();
   alert('⏳ Bhej diya! 3 second me Sheet se confirm karke bataungi…');
   verifySheetSave(m.name, price);
+}
+
+/* ---------- Duplicate Cleaner: menu me do baar dikh rahe products theek karo ---------- */
+async function cleanDuplicates(){
+  if(!(await askTogglePin())) return;
+  const norm = t => String(t||'').toLowerCase().replace(/[^a-z0-9]/g,'');
+  // MENU me same naam ke do items? — sheet wale ko built-in me milao, extra hatao
+  const seen = {};
+  const removed = [];
+  for(let i = 0; i < MENU.length; i++){
+    const k = norm(MENU[i].name);
+    if(seen[k] !== undefined){
+      const keep = MENU[seen[k]], dup = MENU[i];
+      // Sheet wale (naya) ka data built-in me daalo, phir dup hatao
+      keep.price = dup.price || keep.price;
+      if(dup.priceHalf) keep.priceHalf = dup.priceHalf;
+      if(dup.pieces) keep.pieces = dup.pieces;
+      if(dup.desc) keep.desc = dup.desc;
+      if(dup.img && String(dup.img).startsWith('http') && !String(dup.img).includes('placehold.co')) keep.img = dup.img;
+      keep.stock = dup.stock;
+      keep.fromSheet = true;
+      removed.push(dup.name);
+      MENU.splice(i,1); i--;
+    } else seen[k] = i;
+  }
+  // Sheet me bhi same naam ki extra rows saaf karwao
+  try{ await jsonpGet({action:'dedupeProducts', secret: CONFIG.adminSecret}); }catch(e){}
+  renderMenu(); renderAdminMenu(); epPopulate(); renderQuickStock(); renderCategoryGrid(); renderCatNav();
+  alert(removed.length
+    ? '🧹 ' + removed.length + ' duplicate hataye:\n' + removed.join(', ') + '\n\nSheet bhi saaf kar di. Ab har product ek hi baar dikhega.'
+    : '✅ Koi duplicate nahi mila — sab saaf hai!');
 }
 
 /* ---------- System Check: settings problem ki jad khud dhundhta hai ---------- */
@@ -1839,7 +1880,9 @@ async function loadProductsFromSheet(){
         if(!p.name) return;
         registerCategory(cleanText(p.category,40));
         // Agar isi naam ka built-in product hai to usi ko update karo (duplicate se bacho)
-        const existing = MENU.find(x => x.name.toLowerCase().trim() === cleanText(p.name,60).toLowerCase().trim());
+        // Matching bulletproof: sirf letters/numbers — space, quotes, (7"), case sab ignore
+        const normName = t => String(t||'').toLowerCase().replace(/[^a-z0-9]/g,'');
+        const existing = MENU.find(x => normName(x.name) === normName(p.name));
         if(existing){
           existing.fromSheet = true;
           if(p.price) existing.price = Number(p.price) || existing.price;
@@ -2626,6 +2669,7 @@ function renderBill(targetId, includeCheckoutInfo){
 }
 
 function openCart(){
+  document.body.classList.add('sheet-open');
   const lines = document.getElementById('cartLines');
   const items = cartItemsList();
   document.getElementById('cartEmpty').style.display = items.length? 'none':'block';
@@ -2659,6 +2703,7 @@ function comboAdd(id){ changeQty(id,1); openCart(); }
 
 function closeSheet(id){
   document.getElementById(id).classList.remove('show');
+  if(!document.querySelector('.overlay.show')) document.body.classList.remove('sheet-open');
 }
 
 function openCheckout(){
@@ -2720,6 +2765,10 @@ function placeOrder(){
   qrEl.onerror = ()=>{ qrEl.onerror = null; qrEl.src = PAY_QR_DATA; }; // net/QR service fail → apna embedded QR
   qrEl.src = `https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(upiString)}`;
   document.getElementById('payOverlay').classList.add('show');
+  try{
+    document.getElementById('upiIdShow').textContent = CONFIG.upiId;
+    document.getElementById('payAmt3').textContent = currentOrder ? currentOrder.total : '';
+  }catch(e){}
   // Zara customer ko awaaz me samjhaye
   setTimeout(()=>{ try{ zaraSpeak('भुगतान करने के बाद, अपनी यू पी आई ऐप से 12 अंकों का ट्रांजेक्शन आई डी, यानी यू टी आर, कॉपी करके नीचे डालें और ऑर्डर कन्फर्म करें।', true); }catch(e){} }, 900);
 }
@@ -3601,6 +3650,14 @@ async function askTogglePin(){
   alert("Galat PIN! ❌");
   return false;
 }
+function copyUpiId(){
+  const id = CONFIG.upiId;
+  const done = ()=> alert('✅ UPI ID copy ho gayi: ' + id + '\n\nAb UPI app kholkar "Send to UPI ID" me paste karein.');
+  if(navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(id).then(done).catch(()=>{ prompt('UPI ID copy karein:', id); });
+  } else { prompt('UPI ID copy karein:', id); }
+}
+
 /* PIN bhool gaye — email OTP se reset */
 async function forgotTogglePin(){
   const msg = document.getElementById('pinMsg');
@@ -4812,6 +4869,14 @@ window.addEventListener('appinstalled', ()=>{
   const b = document.getElementById('bnwInstallBtn');
   if(b) b.remove();
 });
+
+/* Zara button kisi bhi khuli sheet/overlay ke upar na aaye — amount na dhake */
+setInterval(()=>{
+  try{
+    const anyOpen = document.querySelector('.overlay.show, .page-overlay.show');
+    document.body.classList.toggle('sheet-open', !!anyOpen);
+  }catch(e){}
+}, 400);
 
 // Register service worker for PWA (offline + installable). Only works over http/https, not file://
 // + AUTO-UPDATE: naya version aate hi app khud refresh ho jaata hai — customer ko hamesha naya dikhega
