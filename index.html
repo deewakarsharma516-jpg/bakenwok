@@ -1239,8 +1239,12 @@
         <p style="font-size:11px;color:#8a7a63;margin-top:4px;">PhonePe ek baar kholo, UTR milao, ✔️ dabao. Verified orders hare ho jaate hain.</p>
       </div>
       <div class="admin-card">
-        <label>📊 Aaj ka Hisaab (Daily Report)</label>
-        <button class="btn" onclick="showDailyReport()">📊 Aaj ki Report Dikhao</button>
+        <label>📊 Hisaab (Daily / Weekly / Monthly)</label>
+        <div style="display:flex;gap:6px;">
+          <button class="btn" style="flex:1;padding:10px;" onclick="showReport(1)">Aaj</button>
+          <button class="btn" style="flex:1;padding:10px;background:var(--teal);" onclick="showReport(7)">7 Din</button>
+          <button class="btn" style="flex:1;padding:10px;background:var(--flame);" onclick="showReport(30)">30 Din</button>
+        </div>
         <div id="dailyReportBox" style="font-size:13px;margin-top:8px;"></div>
       </div>
       <div class="admin-card">
@@ -1777,6 +1781,41 @@ async function markPaymentVerified(orderId){
   refreshAdminOrders();
 }
 
+/* ---------- Report: Aaj / 7 din / 30 din — server se pura hisaab ---------- */
+async function showReport(days){
+  const box = document.getElementById('dailyReportBox');
+  box.innerHTML = '<p style="color:#8a7a63;">⏳ Hisaab nikala ja raha hai…</p>';
+  try{
+    const r = await jsonpGet({get:'report', days: days, secret: CONFIG.adminSecret});
+    if(!r || !r.ok){ box.innerHTML = '<p style="color:#c0392b;">Report nahi mili — Apps Script update karein.</p>'; return; }
+    const label = days===1 ? 'Aaj' : 'Pichle ' + days + ' din';
+    box.innerHTML = `
+      <p style="font-weight:800;color:var(--maroon);margin:8px 0 6px;">${label} ka hisaab:</p>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:8px;">
+        <div style="background:#fff4ea;border-radius:10px;padding:8px;text-align:center;"><b style="font-size:18px;">${r.count}</b><br>Orders</div>
+        <div style="background:#eaf7ef;border-radius:10px;padding:8px;text-align:center;"><b style="font-size:18px;">₹${r.revenue}</b><br>Kamai</div>
+        <div style="background:#eef3fb;border-radius:10px;padding:8px;text-align:center;"><b style="font-size:18px;">${r.delivered}</b><br>Delivered</div>
+        <div style="background:#fdeeee;border-radius:10px;padding:8px;text-align:center;"><b style="font-size:18px;">₹${r.count ? Math.round(r.revenue/r.count) : 0}</b><br>Avg Order</div>
+      </div>
+      ${(r.top && r.top.length) ? '<b>🔥 Top items:</b><br>' + r.top.map((t,i)=>`${i+1}. ${t[0]} — ${t[1]} baar`).join('<br>') : ''}`;
+  }catch(e){ box.innerHTML = '<p style="color:#c0392b;">Net problem — dobara try karein.</p>'; }
+}
+
+/* ---------- #7: Bestseller auto-badge — 30 din ka sabse bikne wala item ---------- */
+async function applyBestsellers(){
+  try{
+    const r = await jsonpGet({get:'report', days: 30, secret: CONFIG.adminSecret});
+    if(!r || !r.ok || !r.top || !r.top.length) return;
+    const norm = t => String(t||'').toLowerCase().replace(/[^a-z0-9]/g,'');
+    // Top 2 items par 🔥 Bestseller badge (jinpar pehle se koi badge nahi)
+    r.top.slice(0,2).forEach(t=>{
+      const m = MENU.find(x => norm(x.name) === norm(t[0]));
+      if(m && !m.badge) m.badge = '🔥 Bestseller';
+    });
+    renderMenu();
+  }catch(e){}
+}
+
 /* ---------- Daily Sales Report ---------- */
 function showDailyReport(){
   const t0 = new Date(); t0.setHours(0,0,0,0);
@@ -1937,6 +1976,7 @@ async function loadProductsFromSheet(){
       epPopulate();
       renderQuickStock();
       startHeroRotator();
+      applyBestsellers();
     }
   }catch(err){ console.log('Sheet load skipped:', err); }
 }
@@ -3409,12 +3449,15 @@ async function addMenuItem(){
    Pending Confirmation → Confirmed → Preparing → Out for Delivery → Delivered
    Har status ke saath customer ko WhatsApp update bhejne ka button milta hai. */
 const ORDER_STATUSES = ["Pending Confirmation","Confirmed","Preparing","Out for Delivery","Delivered"];
+const ORDER_STATUSES_PICKUP = ["Pending Confirmation","Confirmed","Preparing","Ready for Pickup","Delivered"];
+function statusChain(o){ return (o && String(o.mode).toLowerCase().includes('pick')) ? ORDER_STATUSES_PICKUP : ORDER_STATUSES; }
 
 function statusMsg(o){
   const s = o.status;
   const tk = (CONFIG.tokenEnabled && o.token) ? ` (Token #${o.token})` : '';
   if(s==="Confirmed")        return `Namaste ${o.name} ji! 🙏\nAapka order #${o.orderId}${tk} (₹${o.total}) CONFIRM ho gaya hai. Hum jald hi banana shuru kar rahe hain. 🍽️\n— Bake 'N' Wok`;
   if(s==="Preparing")        return `Update: Order #${o.orderId}${tk} 👨‍🍳\nAapka khana abhi FRESH ban raha hai! Thodi hi der me tayaar ho jaayega. 🔥\n— Bake 'N' Wok`;
+  if(s==="Ready for Pickup") return `🍽️ Order #${o.orderId}${tk} TAIYAAR hai!\nGaram-garam ready rakha hai — aakar le jaayein. 😋\n📍 Bake 'N' Wok, Dayal Nagar\n— Bake 'N' Wok`;
   if(s==="Out for Delivery") return `Update: Order #${o.orderId}${tk} 🛵\nAapka order DELIVERY ke liye nikal chuka hai — garam-garam pahunch raha hai! 😋\n— Bake 'N' Wok`;
   if(s==="Delivered")        return `Order #${o.orderId}${tk} DELIVER ho gaya! ✅\nUmmeed hai khana pasand aayega. 🙏\n\nAchha laga ho to Google par ⭐⭐⭐⭐⭐ review zaroor dein:\n${PAGE_INFO.googleUrl}\n\n— Bake 'N' Wok`;
   return `Namaste ${o.name} ji! Aapka order #${o.orderId}${tk} (₹${o.total}) humein mil gaya hai. Jald confirm karte hain. 🙏\n— Bake 'N' Wok`;
@@ -3572,8 +3615,9 @@ function renderKDS(){
   if(!live.length){ box.innerHTML = `<p style="text-align:center;color:#fff;opacity:.7;padding:40px 0;font-size:20px;">Koi pending order nahi 🎉</p>`; return; }
   box.innerHTML = live.map(o=>{
     const st = String(o.status||'').trim();
-    let idx = ORDER_STATUSES.indexOf(st); if(idx===-1) idx=0;
-    const next = ORDER_STATUSES[idx+1];
+    const chain = statusChain(o);
+    let idx = chain.indexOf(st); if(idx===-1) idx=0;
+    const next = chain[idx+1];
     const itemsTxt = Array.isArray(o.items) ? o.items.map(i=>`${esc(i.name)} <b>x${i.qty}</b>`).join('<br>') : esc(o.items||'');
     return `<div class="kds-card">
       <div class="kds-top">${CONFIG.tokenEnabled && o.token ? `<span class="kds-token">🎫 #${o.token}</span>` : `#${o.orderId}`}
@@ -3608,7 +3652,7 @@ function refreshAdminOrders(){
     const st = String(o.status||'').trim();
     let idx = ORDER_STATUSES.indexOf(st);
     if(idx===-1) idx=0;
-    const rest = ORDER_STATUSES.slice(idx+1);
+    const rest = statusChain(o).slice(idx+1);
     const itemsTxt = Array.isArray(o.items) ? o.items.map(i=>`${i.name} x${i.qty}`).join(', ') : (o.items||'');
     const mapBtn = (o.mode==='delivery' && o.addr && o.addr!=='Pickup from store')
       ? `<a class="ost-map" href="https://www.google.com/maps?q=${encodeURIComponent(o.addr)}" target="_blank">🗺️ Map</a>` : '';
