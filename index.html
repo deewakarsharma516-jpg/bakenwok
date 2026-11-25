@@ -818,6 +818,7 @@
   .sheet::-webkit-scrollbar-thumb{background:var(--gold-light); border-radius:8px;}
 
 </style>
+<script src="https://checkout.razorpay.com/v1/checkout.js"></script>
 </head>
 <body>
 
@@ -1263,6 +1264,7 @@
 const DEMO_VIDEO_DATA = "";
 const CONFIG = {
   upiId: "paytmqr6oztgr@ptys",           // <-- Paytm UPI ID
+  razorpayKeyId: "rzp_live_U4UXBUcKyJytZ0",   // 🔑 Razorpay LIVE Key ID (public — safe)
   whatsappNumber: "919076769441",  // <-- restaurant WhatsApp number (country code + number, no +)
   deliveryCharge: 30,
   deliveryEstimateMinutes: 30, // shown on the Track Order screen countdown
@@ -2250,13 +2252,58 @@ function placeOrder(){
 
   closeSheet('checkoutOverlay');
 
+  // 💳 Payment: Razorpay key set hai to usse lo (UPI/card/wallet), warna purana UPI QR
+  if(CONFIG.razorpayKeyId){
+    openRazorpay(currentOrder);
+  } else {
+    showUpiQr(currentOrder);
+  }
+}
+
+/* Razorpay Checkout popup — asli secure payment yahin hota hai */
+function openRazorpay(o){
+  if(typeof Razorpay === 'undefined'){
+    alert("Payment system load nahi hua — internet check karke dobara try karein.");
+    showUpiQr(o); return;
+  }
+  const options = {
+    key: CONFIG.razorpayKeyId,
+    amount: Math.round(o.total * 100),   // paise me
+    currency: "INR",
+    name: CONFIG.restaurantName,
+    description: "Order #" + o.orderId,
+    prefill: { name: o.name, contact: o.phone },
+    notes: { orderId: String(o.orderId), address: o.addr },
+    theme: { color: "#7a1f3d" },
+    handler: function(resp){
+      o.paymentId = resp.razorpay_payment_id;
+      o.status = "Paid";
+      sheetPost({ action:'markPaid', orderId:o.orderId, paymentId:resp.razorpay_payment_id, amount:o.total });
+      confirmOnWhatsapp();
+    },
+    modal: {
+      ondismiss: function(){
+        alert("Payment cancel ho gaya 🙏\nAapka order pending hai. Dobara pay karne ke liye phir se Place Order karein.");
+      }
+    }
+  };
+  const rzp = new Razorpay(options);
+  rzp.on('payment.failed', function(resp){
+    alert("Payment fail hua: " + ((resp.error && resp.error.description) || "dobara try karein"));
+  });
+  rzp.open();
+}
+
+/* Purana UPI QR (fallback — jab Razorpay key na ho) */
+function showUpiQr(o){
+  const total = o.total, orderId = o.orderId;
   document.getElementById('payOrderId').textContent = "Order #"+orderId;
   document.getElementById('payAmt2').textContent = total;
   const upiString = `upi://pay?pa=${encodeURIComponent(CONFIG.upiId)}&pn=${encodeURIComponent(CONFIG.restaurantName)}&am=${total}&cu=INR&tn=Order${orderId}`;
   const qrEl = document.getElementById('qrImg');
   const payBtn = document.getElementById('payNowBtn');
-  if(payBtn) payBtn.href = upiString;   // mobile par tap → UPI app khulega
-  qrEl.onerror = ()=>{ qrEl.onerror = null; qrEl.src = PAY_QR_DATA; }; // net/QR service fail → apna embedded QR
+  if(payBtn) payBtn.href = upiString;
+  qrEl.onerror = ()=>{ qrEl.onerror = null; qrEl.src = PAY_QR_DATA; };
   qrEl.src = `https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(upiString)}`;
   document.getElementById('payOverlay').classList.add('show');
 }
@@ -2286,7 +2333,8 @@ function confirmOnWhatsapp(){
   if(o.notes) msg += `*Notes:* ${o.notes}%0A`;
   msg += `%0A*Items:*%0A`;
   o.items.forEach(i=> msg += `- ${i.name} x${i.qty} — ₹${i.price*i.qty}%0A`);
-  msg += `%0A*Subtotal:* ₹${o.subtotal}%0A*Delivery:* ₹${o.delivery}%0A*Total: ₹${o.total}*%0A%0A✅ Payment done via UPI`;
+  msg += `%0A*Subtotal:* ₹${o.subtotal}%0A*Delivery:* ₹${o.delivery}%0A*Total: ₹${o.total}*`;
+  msg += o.paymentId ? `%0A%0A✅ Payment received via Razorpay%0APayment ID: ${o.paymentId}` : `%0A%0A✅ Payment done via UPI`;
   window.open(`https://wa.me/${CONFIG.whatsappNumber}?text=${msg}`, '_blank');
 
   closeSheet('payOverlay');
