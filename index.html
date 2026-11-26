@@ -922,21 +922,57 @@
   .cat-grid-item img{ border:2px solid var(--line); box-shadow:var(--soft); }
   .cat-grid-item span{ color:var(--ink); font-weight:600; }
 
+
+  /* ===== LANGUAGE PICKER ===== */
+  .hero > .lang-btn{ position:absolute !important; top:12px; right:12px; z-index:5; }
+  .lang-btn{ display:inline-flex; align-items:center; gap:6px; background:#fff; color:var(--ink,#1b1b1f);
+    border:1px solid var(--line,#ececf0); border-radius:999px; padding:7px 12px; font:600 13px 'Plus Jakarta Sans','Poppins',sans-serif;
+    box-shadow:0 2px 10px rgba(20,20,30,.08); cursor:pointer; }
+  .lang-btn:focus-visible{ outline:3px solid rgba(242,100,30,.35); outline-offset:2px; }
+  .lang-caret{ font-size:11px; color:var(--muted,#70707a); }
+  .lang-sheet h2{ font-size:20px; }
+  .lang-grid{ display:grid; grid-template-columns:repeat(2,1fr); gap:8px; }
+  @media (min-width:420px){ .lang-grid{ grid-template-columns:repeat(3,1fr); } }
+  .lang-opt{ display:flex; flex-direction:column; align-items:flex-start; gap:2px; text-align:left; background:#fff;
+    border:1.5px solid var(--line,#ececf0); border-radius:14px; padding:10px 12px; cursor:pointer; font-family:inherit; }
+  .lang-opt .ln{ font-size:16px; font-weight:700; color:var(--ink,#1b1b1f); }
+  .lang-opt .le{ font-size:11.5px; color:var(--muted,#70707a); }
+  .lang-opt.active{ border-color:var(--accent,#f2641e); background:#fff5ef; }
+  .lang-opt:focus-visible{ outline:3px solid rgba(242,100,30,.35); outline-offset:2px; }
+  .lang-note{ font-size:12px; color:var(--muted,#70707a); margin-top:12px; }
+  /* Google Translate chrome hidden — our own picker is the UI */
+  .goog-te-banner-frame, .skiptranslate > iframe, #goog-gt-tt, .goog-te-balloon-frame, .VIpgJd-ZVi9od-ORHb-OEVmcd{ display:none !important; }
+  body{ top:0 !important; }
+  .goog-text-highlight{ background:none !important; box-shadow:none !important; }
+  font font{ background:none !important; }
+  /* page-level EN/हिंदी toggle is now driven by the global language */
+  .page-head .lang-toggle{ display:none; }
+  #langOverlay{ z-index:400; }
+
 </style>
 <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
 </head>
 <body>
+<div id="gt_el" style="display:none"></div>
+<div class="overlay notranslate" id="langOverlay" onclick="if(event.target===this)closeSheet('langOverlay')">
+  <div class="sheet lang-sheet">
+    <h2>Choose language <button class="close" onclick="closeSheet('langOverlay')">×</button></h2>
+    <div class="lang-grid" id="langGrid"></div>
+    <p class="lang-note">Languages other than English and Hindi are translated automatically by Google Translate.</p>
+  </div>
+</div>
 
 <!-- ================= CUSTOMER STORE ================= -->
 <div id="storeScreen">
   <div class="hero">
+    <button class="lang-btn notranslate" type="button" onclick="openLangPicker()" aria-label="Change language">🌐 <span id="langLabel">English</span> <span class="lang-caret">▾</span></button>
     <video class="hero-video" id="heroVideo" autoplay muted loop playsinline></video>
     <div class="hero-video-shade"></div>
     <div class="hero-ring"><div class="hero-ring-inner">
       <img src="data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBAUEBAYFBQUGBgYHCQ4JCQgICRINDQoOFRIWFhUSFBQXGiEcFxgfGRQUHScdHyIjJSUlFhwpLCgkKyEkJST/2wBDAQYGBgkICREJCREkGBQYJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCT/wAARCAFoAWgDASIAAhEBAxEB/8QAHwAAAQUBAQEBAQEAAAAAAAAAAAECAwQFBgcICQoL/8QAtRAAAgEDAwIEAwUFBAQAAAF9AQIDAAQRBRIhMUEGE1FhByJxFDKBkaEII0KxwRVS0fAkM2JyggkKFhcYGRolJicoKSo0NTY3ODk6Q0RFRkdISUpTVFVWV1hZWmNkZWZnaGlqc3R1dnd4eXqDhIWGh4iJipKTlJWWl5iZmqKjpKWmp6ipqrKztLW2t7i5usLDxMXGx8jJytLT1NXW19jZ2uHi4+Tl5ufo6erx8vP09fb3+Pn6/8QAHwEAAwEBAQEBAQEBAQAAAAAAAAECAwQFBgcICQoL/8QAtREAAgECBAQDBAcFBAQAAQJ3AAECAxEEBSExBhJBUQdhcRMiMoEIFEKRobHBCSMzUvAVYnLRChYkNOEl8RcYGRomJygpKjU2Nzg5OkNERUZHSElKU1RVVldYWVpjZGVmZ2hpanN0dXZ3eHl6goOEhYaHiImKkpOUlZaXmJmaoqOkpaanqKmqsrO0tba3uLm6wsPExcbHyMnK0tPU1dbX2Nna4uPk5ebn6Onq8vP09fb3+Pn6/9oADAMBAAIRAxEAPwD51XrxVu3xkfWqi1Zg4pMDd088ium049BXLaeeRXT6aRgZrGZtA6G2ztq5GxXBqpa/d/pVliMVzSOiJehutpHNaVtqW3uK5h5tp64pq35U9awkzeKO8h1XgcgU6bUQy9a42DVCe9WTqBK8Gs3I1UCzqt1lTzXD61Jkn0roLu4LjBNczqal84NJPUJRscxeAsTWcV+bpW5PbZ7VUeyPXFbxkjFxKtsdrCuh024wRisZbYpzir9o2wgc/hVcxHKd7ot3tK8122mXmQvNeY6XcMpGTXZaZdHaDmnzjUDuoroFODVDUJsqe4NVre5LKOaZcuXU0cwnE5PXcuGxXB6nAzsxxXomp2xkBFc3c6UWYkijck4Z7Rs9KEs2PautbRCT92k/sUgfdp2Hc5qKFlNa1lKUIqzLpRX+GovsxjOcYrGpC6NoSOo0jUCmOa7LTdR4HIrzOymZGAzXUabeEACvMrUjtpzPQ7e+yBnFWlvOOua5azvOBWgl0SOuK4HT1OpM3PtmO9Ib33rGNyfWmtd+9LkHoa7Xgz1qJr7vkGsaS+681Um1DaPvUezE7G//AGkAeSKDq4UHkVyFxq4XPzYrOm1zH8f61vCi2Yykkd22thf4gKj/ALeX+8K87l8QAcb/ANarnxDz9/8AWuhUGYuoj09NdUjlxmrEetr/AHhXlkXiAk/f/Wr8GvA/xVfsWT7RHpSawD0YVMmqA9xXn0GtBsfNWjb6rkj5qiVMpSR26XwbvUq3PvXL22oBsfNWlFd5HWsZQZaZsifPeis1bjI60VHIB8aLz3q1CcYqop5qzE3oa+zZ82jZsDgium01skc1ydi5DCul06TBFZSNIs620PANWHwF4qjZSfKKuNINtcs0dMChdttFZj3GGzmrl8/UCsaeTBxmueSOqBp29ycjmr8U5IzmsC3l5HNaMU2O9ZNG0Wi7NKWB5rNuIw/Wp3lwOwqBpFJ96hoptFcWQY9KU6bkdK0LcK3eryRKU6ZqHUaBQuczLp+M8VCLbYeK6W4t1xWZNGAelXCo2RKFhbAbcCuo02XAHNcvB8pFbthKBitk2zJqx1tpJlRyauH5hWPZzDaDmtOKYEc1rEzkyOW0EmcjrVR9LVh92tZHU96lQIetbRRk2Ya6OD0Wg6QoBytdAAlI6piqsTc5K60oAEbRWFe2AQniu4vFXbwK5y/Qc1lNGkTm1hKPW1YEriqhQbxWlZIAAc1xzjc6oSsbVox4Ga0I2OKo2oAUc1ejI9a5/YXNlVJC5qvLKRnmpXYbTWZdTYB5pOgUqwlxd7Tyaxr7UtoPOKS/vMZ5xXL6nf8AUZpRoClVLN5q5BJ3Vi3Wtnn5qyr7UGOeaxp7wsTzXdToHJUrG5JrJJ+8TUQ1ZieGNc+Z2J61NBuYiuhUkjHnbOlttQc4+Y1rWt45xya56xhJxXSafZ7sHFRKKNYJs1La6c461q2l0wIyTVW3s+BhauR25WsJRTNtjbs7zkZNbtpc8DJrkoJNhFalve7QMkVg6Y+ex1CXANFYaakBxmil7In2h8uqfU1NE2DVYZqZGr6M8U07SbBHNdBp8+Ctctbvgita0uMYINZSNInbWl3gDmrT3YxwTXMW17gdas/b+OtYSRvFly8uc55rImmwetJcXee9UJJ8k81k4GymaEM/PWr8V1x1rn0nAPWrSXWBUuBSqGu91xjOai+0jPWs17oEdaiNxg9al0yvaHRWt2PWtOK9GOorkIboA9cVdi1A464rCVE0jVOhmuQw61mTzAmqjX+4ZzVSW7yetEKVglVNFZ8Ec1qWd3t71y63POc1dt70jGTXRGBg5nbWt9gdavxaiB1auKi1DaPvVYXVeOGrRRIcjtU1Mf3hU6amOBmuHXVsfxVINZwfvVoiTuRqg9aG1Mc/Nk1xX9tA9Xo/tnvupiOqudQBByRWNeXasTzwKyZdUZu/NU3vDJ/FwKhoqLsaqzRE5NaFtJHjOa5Vbzc5GcCr9tdFsDOKy9mXznXQ3CAA7s1ZW8XH3ulczFdlflJqZ7zYBzxTVMXObkl6OmazL69yDggVQl1Bj3x6VmXd9ndlufSh0xqY3UbsgHk1yep3Z55NalxckjkEisLUUEilkbn0pxpilUZjXVySTVBpSTVi6RhnI5qngk10qNjBu5MnJrSskyRms+BCTWzYx5IzWc2bU43NzTIASDiuu02AEDjiub01cYrqtOwMVyydzuhGxuW1qCucU+W2Cin2soCgZp0zhh1qC2jLnfyyarG/KnOadfsRmsC6uWUk9KpROWbsbn9rEAjdRXKSXxJ60VfIYuR5uEqRVq0bbaMU0wkV3cxycgxCVNXIZCKrKnPSp41qXIpRL0M5HephcnuaqohxmpRGfSs3JGiiDzk55qFnJNS+STSeQQam6KsxisQRUiykcZo8gjvS+URRdBYQyEik3HNP8o0CHmlcdhEdh0qUSmmrD7mneXS0BDvOb86aXJJpfKNL5VGgwVmqeORhTFiJqZYCadxWH+c2KUXLCjySRTGgYU1ILDnu2Bzmm/bWPfmoJIj6mogCDinzC5S8l6TgFuanS7J4zWYoOauQptAJ707hYvecSOSeegpHlMaYB5NRZLfQUuzfzmi4WHQud44rasYzJhgKzra0OQ2OK6LTLRwoYDNK4NDfJaM565omjfIrdi01mUOVzximS2JJK7elJyEonMOzs2COap36YBIz05ron04oSSADWfd2mcnqKXOVys5S4ZihBPHY1kTuRk9/Wuiv4AgIxWDeREDgcdxWsSJGdKRICGHNUHtipyOQa0zFu4Ix7014GQdMirZK3KlumD0rasY+mKz44iGHpWzYxkYHrXNNnZSRs2AxjiugtJMcVjWUfSteBccVzs7oo2ba4JA5q1v3LWbbnOM1oRDK0hNGdfJuB4rnb6M5NddcwgrWFeW3J4rSLOSqjmJUYdqK1JLQ7ulFa8xytHIyW2ByBVWSPArVnwBWZcuBmqi7g0VgMHmp4VzxVJpMN71Yt5cnmnIIq5qQRZAq2ttnHFQWbjitSEAjgVySmzqhTTKptO+KabQ1rLFuFL9lyM4qfaF+yMb7N2xSGDH0rXa2/wBmq8tuRniqUyHTsZzRD60gQYqeQbe1VnkA9q0TuZPQeABS7RUHnAU1rjAqrMm6LBxQGFU2uR6037XzT5WK5qxYPXrVyGLJ+Xms60YykKK3LTCjaAM9zSsO4n2QY5pklqoBq5kAHjJppUFee9BRkS2/BJqo0WGrZki3HAqpNakDOMClcZRiiDPyeBVrgnIHAqKTaBtWrESgL/LNUibCpjBq1ax72Hr6VWVeck8VfsQqYkNO4WNrT7FQQJMV01jCip8iiudsZBIwJP4V0FlLgDHSk2LlNiJF8vpj2qFo8tgjGafDIMAg09mSQ4yKylI1jEzrmBX424NYWo23lqQR0rpp9h4yAR3rC1aUZKkDB6GlFtjkkkcVqK4DFqwJ2znHNdHqwIYqehrnLjCsy/rXbTRxzI0jEpxjFP8As4YY7io0cI3HJqRJsvmtJCgKlmCQOAa1LW0WMZyKhiCvjvirB3RkADOa5pnbSZp2hC4wMitCOQVjW8hGP5VoQSk4rmZ3xNe2PTnitWE/LkVi2snStSKQADNSDLEqgrWZcxAnFXJJgBjNU5ZVJqrnNMpm2GelFT+ZRS5mYcp5pdTAZ5rHupuvNW72YVkzyZPWu2ETlkyNpeamgmx1NVDzT4+DVuIouxv2dwBjJrbtZ8gc1yltKQRWzZ3BBGTxXFUgdlOodTbMGAq7HGDWPZ3A4rXt5xgGuSSaOpSTJHg4ziqNxDgGtIyqRVS6cMDinG4SMC8QqTWTOSD1rZvjkdKxbgcnmuymcVQrvMQcVG05xjNDgmoitbpHO2I0xHSkSUlsUhjoWM5AqrE3N/TGKoDjk1u2jgcHGTWLZKEiStK3yW/lUGiZspEAODkd6a0BJwnNW7S282LLfLVgwmIbAACfWoZdzNe18hdz8ntVC6R5hjp647VttCXbDHIqrcWJBODgUDMFbI7zk8UMDuwB0rVNmqD73JqFrNScKfrSBFa3geVv9nvVxU2uAOgp4QQrtU/Wm8vwOtA0adg4DAY5710tscINpBrlrNCg3HmtqwuGVlU9DUjNX7SVPHSon1MI3GeKjmXYSc8EVlzTCNjkVLhcpSLz6oJCQxxVK6vI3VopMEHofSs6Wdck7uKpS6ihO1uR61pCFiZy0K+pJIjnccqehrmr9vLc55PauguL1Zh5RbKn9KxL7T3JLRnetdcEckjPhkyTUiOQ2B0NKISgxtwe5qpllchc805DgbMd2tugwQWNWbG8aR/mA2msSJGLA9fWtazTaQMVzTZ2UjXkIU/L371PAxGOarPwq461LCTxXOzti9DXtZfXirougB1rHjl2jmke8C8ZoSFKVjTlvccZ4qo97k43Vkz3+Ohqo17k9cVfIck6hvi8x3orAW955NFHszPnOOvX5x+dZ757VbvGyTg1Szk12QRySYqpmp0i6cU2NQTircaZ702OI2JCGq/bttxzUKpg1Ivy9qylG5opWNe2n29604LzAHNc9HLt71OtzjvXPKnc3jVsdGL3I4NRS3eQeaxluz601rk+tSqRXtSzcS5zzWdKMk095s96iZ81rGNjGcrkLIDTTFmpuKStEQQGH2pyxAEHFS8UoHFMDTtSDGtX7RszopHGaybWX5dua0LS4VJkY9AaLAdvbMhj4GCKbcRvINwOTVWC8VSp/hatMTRum9VocRcxkh3QEsSR71HLKXTjOK028uUHKcVC8ELJ8p59KXIVzGM4DfdzQdqKAOCavTQJEemM1lXZZOhOM0uQfMOMg6Z6VJE4xwfxrNMx6VZtC7tgdO9HKHMbFnlyPSrhkCMCO1U4XVMKKfljJnn6U+QXObkDmeAqTyBWBqUvkhiWwRWkkjRqG6AcGsfX0MsZkUcY5q+QhzMC41MqSd3BrPl1Veect2FUL+RkJAOfrWU0rsTyc1SiTzm2l9Iz4/hNaUcU4hySQD0FY+khSMsNzdh6V0KXWY/KX73vWqRm5XM27LhOg3Cs+N2LHjNbc9uQMkZ3VSihG8krx2FZzNaYyKFtwOMZrWsocYPaq4UswAGAK1rG2JUZFcs2d1McsRc89KtLb7V6VagtOAcVO8O1elYNnT0Mi4OwcVlXN0QSK1L9duea528kwTya1grmFSRFNdnPWq/2ok81BLIRUBlxXTGJxTZoi5J74orOEpz1oquVGfMZ903NQDGRUtycmq4JBpolstRHBFXIzwKpRGrSHinYaLKkU7fioAcGlLYFS0O5MJO3enCT1NVt1G80rDuWhL70vm+9VQ1LuNHKPmLG+jf6mq/mGjcaLCuT7/Sl31X3E0u40WC5Y30bsVAGIxigMcjNFguW0k2nOcVbimJ5HGKzAxNSxyFDRYDorHVgE8uUn2NaVtqjA7VfI9M1ycTHdz0qzFO0bjBNFgOtF+207SQaiW6fcSxI96xYLkuMFuaslyV5J5pgbLTrcxBVJ3CqTgqCso/OksCvmAk84raNhFeoCPlI70AY0WnxTcqcAU8+XB8qcCtKW2W3h2IBn1rJmiKnBHBoGWI5htyvWtPT1MvzMM1kWkG5toya6OxgMUOOpP6U0SyOXKowI+WseebzvMjBwcVr3IYZU8CuflHlXW7GQTTJOe1HS/OLFeGHWsCe0eBxkY9a7q4hJlLLwD2rC1OzEmSRyOlUIybSURfc61u6aBI4Zjwaxorbac4Oa3dJTbgEc1RJdubdnTjpmqqQlMlhWpGxBORn2qlKS0pXHFZTRtTFs4N7njvW/Z2gwOKoabByDiumsrfCg4rjmehTGQ2uFHHSm3MYUGtXyQF6VnagcAisrGrZzGpjAJrl7w8mui1WTBNctdy/Ma6KaOWoynMf0qqx54qSWSq7PiuqKOSbHbsGiotxJoqrGVyG4HOagHBqzc9ard6mJUieLrVuM8ZqpCBVyPFNiQ6lp2M9qXFIojxz0o/CpMenNG0Uhje1A59afj2pQBSAZg0oHHpTse1LjvjNAWGDpS4z2p2MilxQOw3FAFPA9aAOaB2BRxxnNSBcckUqLxUgT60APiFTlcc1Gm1fvMo+pqVHByFSRyf7iFv5Um0OxJbkAjJrTXDp70ml+Fdf1VlNjpFzL6blK/zruNK+DXjC5CNcWcdmh7vIDUurFdRqDOX06A+YDj6ZrdgZ0yoFdpafB37KVN94hto8dVC5rQX4f+FLZwbjXDMR1CDFQ8RBFexk+h586K0fzdazLmAKSN3FetDw34FtWz5d1PnuHqUad4HB3f2RcOR6vWbxUSlh5HlOkwRr85b9K2Y2jVM7/wBK9Hgl8Jw5EWgvj3NWDe6AFwmhDHvTWKiJ4eR5NeNGVLFuPQCufuSgkDbgRnpivcrnUfDpG19ABHfGKzZZvBspKyeHpPwaj61EPq0jx27kjdAQee1ZE0XmsffivbZtP8AXXyz6Rcp6bX6VTbwT8Ob19yG7tz7vnFNYuInhpHjTWQCcDmr1jb+WAe/pXqcvwn8KXnNl4iFvjoJBmoJfgtfLhtO1y1u17AAAmtY4mD6mboSXQ88kby3ziqk6gTB1712+qfCrxdZKWOmedH1DI4Oa5DUtL1HT5Nl5Y3ERX/pmTVupGQoxcWX9MbJFdNYngVx+m3AB5yP97iunsrkbRg1hOPY7acjVkbCmsPU5QA3NaMlyCvBrndWuOvNZqBo5aHO6vcfe5rlrmfLGtjVJcljXOTtkmumnE46khjyc1GWzTGYk0DPWuixzNj1GTRUkMZY9KKluxSRDdH5vSq3erFz96q3OamIpE8PBq7F0FUosDHWrsfIqmSidaX+VIOlBPNSWLxSZwelGaKQxc+tLmm5pQaAHCikBozSGPzmkpM+lI0iqVVs7mOFAGc0N2GOFKWWPl2Cj34rs/Cnwf8W+LQJltBpdkeTc3nCkeor0PS/hz8PvBZEmq3Muu369Ygd0Oa554mEeprCjKR41pGjatrsqxaVpl1dM3R0jJT869E0j4B+IbiNZ9ev7TSLc8nbIC4H0run8c3cUJttBsLXR7boBAoBrDuZLm/fzLy6kmcnnca4amOf2Tshg/wCYfa+APhvoGDd3Vxrsy/wsNozWxbeJdH0oeXoXha0tRjh2+Y/rWEkSJwq07nPYYrlliJyOmOHhE6H/AITDxFeAp9qjgT+6kYH8qbHPe3L5nu5n/wCBkVk2kqhgC2c1qhwqKQNopxuxNJbEgwCdzOee7ZpVVSfuiqrz7mwD3p8cvON1XYkssyAAYGfpShwowBVUy+lamh6Hea/I32cbIl+9I3SjlE5JFeNl28jBqTzsLya6qPwbp8VsUmnkabuQeKy73wfPFEXtJxJ6K3WmiedM5y7m3sDjiqhXaS23rUl/5lnJ5NwjRSDs1QNMAByTQy0RMynPy8iprSIMMsox9Kg3fOFHfvVwSLHHtHGRQkDZDc7QThRj2p9ux4CPIh9mNV5WO4kcmlikxj1qepWljobTUtSt1Hk3sgx2JJqWTxpqKny7u3t7uM8EPGOayoZspjJHFVZZQ0nIyKUpNLQlQT3NWQeDNY/4/tBW3kP8cZ6GoH+HGiXvOja20bnpFIMD86rRqO68VOkIPzKNpH50RxM4jdCPQwta8BeJdIQyG2W5hH8UB3GvP9YneJmSdHgcfwyjaa9ustV1LT+YLpiv91ulT33/AAj/AIljMGvaRAzuMG4RfnHvXTTxq+0YTw8uh8vahL17ZrGcZbNe6eKv2e2u45LzwlqizoBk29yfn+i149q3h7VPD94bXV9PuLKUHAEq/e+lenSrQktGefUhJPUyhDu7VNHb57VoQ2DNjitS10hmx8tbORmomVbWnTiiurt9GOB8lFYt6m0Y6HnVzyaq4qzc9RVYnmtYnOyeLtzV2E8VQi5NXoicYqmIsLzQeKF5GaDSKQlH40DmgCoKAfnQCaDkd6TGKAHA8cUpYDr+Q6mpLGxutSvIrKxt3ubqYgJGgyc+/tXv3gr4LaP4Ls4tf8byR3N9gOljn5IvT6n2rGrWjTWprCDk7I8w8E/CXxN43ImhgOn6aD817OMAD6GvVNK8P+BPhmMWlsuvazj5ppBujDewqx4l8dX/AIgJt7PFjp6fKqxjbuH0FcsSkWQnJPJY15FbGSnpE9KjhEleRp634w1rWwVuLo28HRYIvlUD6VUtrdEQO2GY1msWeZdvPua0451VQWwTjtXNq9zqso6InB9V/Cl3dzgVXadmHyjHvULzAffbNPlFzFtpVU9c1GZjnjjPrVF7sDOKga8AP3ulUoicjagkUSjJ/Kr8l0FjA5rlEvgGBHFX1vi8YHatoIxkzYNzlRgVs+FdDuPEl2Yo8xQr9+YjgVmeEvD8/inUVgVmS3jO6WUenp9a9ys7K30y1htbO3CxxgAYHX3NbRhfUwqVbKyKuj+GdM02z+zi1V93WRxnNW9RgFhakWcCxqB0QYzWnHuYZYKMdqqXF8E3K+0gVtUiuWxyRk27nFS3pM2Mtu7itvTLOSSJZpuF7e1XYVsZCZhbrvHeo7jUEHy5AHoK4oUlHVs3lNtWRkeIdMs58faIkk3fxY5rkdT8ERzgyabMYz12N3rb1q8kuZC0IOYzkii3vnuI0k2jHRsdqOfU0jdI82niuNPuDHcxPG6nHPQ0x7ree449a9K1myt7+xaKeNWBHyt3BryzUbWawuWgkUgfwt6im2axlcnFwuME0+CRXf72BVBTxtPWlXIf73/16RobLyhVB3VCkis3LGqRuGcBUVpGzgKgya7jSPhfdXenLd3d4baWQblix/OplFsOdRMWB8jGDVyILjjmuh0v4cTh2+3XoVO23mtR/AFkkLeXeSB/XHWpVNsTrJM49Vy/yipwuTtIB/CpNQ0u60ibypoy69mFLbncu7g1jKNmaqSZJbpJA4kt5Cje1aUzadrtq1l4gsIbtHG0yMmXH0NQwphd4wT6VZEYdRuAA9fStISlHZmVSMZbnnPiP4FxW6yX/hmUzwfeNox+cD61y9noxiYpLEyOhwysMEGvdbR7i2k3JI20dh3pNV8P6f4pBl2C3vVHEijG72Nd9LFt6SOSpRtqjyKLSVx92iupu9JuNLnMFzGVYdD2P0orrUr6mNj5UuetVTj0q3dDB4qrXZE4mSxEelXYu2apREZq5EeBxVMRZXpQ2B2pFPY0Hk1JSD6Um6kJ59qQnjNSyh38/erWl6Zfa1qMGm6dA1xeXDBURRn8T7VUGWIVQWdiFVR1JPSvp74R/D+3+GnhpvEGtIg1q6j3nfybdP7o9zWFeqqcbmlODk7IseDfBGifBfQjqN8Y7vXpV/eSnnYf7iVyus61e+I717y/c7Ccxw54H196XXtdm8Rag15OWECnEUZ9PU+9Zry9SevYV4FWq6juz26NFU0PY55Y4HYVFMUCkkgD0qCS9WIEswz6VQlvlkBLtgUoxNHItiXeeCFFOF1HCmevvVbT7S+1ckafZy3AXrtU4/OvSfh58MNTn1OLUtdsRDYx/MsLc7z2rojTbOedVLc5G38P+INShSa1024aJ/uvjg1Un8O+I0uTb/2NeM47heK+hr++S0DRwFYwv3UQYArPs/EzxTkTqOeN3es3WhGXKzNSk1dHz9feG/E1mU83Rb3DcjC1h3N21tOYbhWikB5Vgc19cJfx3ICoBLjpnmuf13wzoOrmRNV0yAlx96NAG/Oui8bXRCqO9mfNcdwrEZb8K0YJ/NQRx5LscDHc1veLfhRfaZI95oJN3YLktD/HGPr3rJ8Cwtfa0ibd6wHLgjBBFWrWuinI9x+G+mppeiJbgbJZP3khPY12MuqGBFjijMj9KwdBuFS3M3AJ7V0lq8fkgpt3nkkjpVU3c5au5UEWo3TfKGjB7tTZdPt7FS93OXY9geKm1PWPsqhCSzH+7zWDd2+r6lIrW9sxU/xMcYpSWtlqyY92RXmrssrQ2y/QLUukWrNA15e5BHCqe9adhpcdjbyC6aFJ3H3iQcVFd/ZDaLbtqMYA74prDStdlOqtkc2mJL65KEEHII9Ky4C9tcSxMcKx4ro7LR9PtXmf+1o3MwxjHSoLvwtLdhfs1/DIw/WpeHmlsWqsTJNzJGmxzkEda5rXrYapAwX/AF0fKn19q6jVPDmtQwBltGkC/wASmuYupZrOTEyNG565XGKwnCUXqjeE4vY4wSujbJcKynBzXT+EfBeo+KLlHKGCwz89w3AI9q1fDXgGy8WX5v7x3FnGeQvHmH0r163Ww0izis1VYoYx8qCt4RVrsipVa0RlaP4Q0HQAEt7dZpAP9bIMsKm126aBVKoVUd6um5W4YtCmF/vGqt/d28iiO4ZWFTWacbIyhe92c6+r7G3LKR7etaelXN5dyg4Ii65PSnjT9L2iRIck85PSmXurCO1byAojiHJWuKlBwd5M3lJS0SM7xTfCzuF48yP+IHpWU9rDLCLi0ZRu5KVl6jq8upK1y6lrZm2kjtU1uj2kitbtvQjIFXzXepaVkX4WBAwQCO1WhJkgMcVgS6g0U7NJGVBPNaVleJMMbh7GpVi7G5ASmAMEVaii58yNiMdRWbbyDgPn6itCIlWGxuDVkMmvbGDXLP7PcJhh92QdVoqzbqQCw69xRXRCo0jCUVc+BLkc1VIzWlc27elVGt2HavcTPLGRdRVuKoY4DnIBq1HE3Gaq4WHr0pxNOWE0GM/hSuNIiI70nWpDHznFdN8OPAdz8QPEsenJuSzhxLdS+ieg96iclFXKim9DsP2f/h1/wk+tjxJfxE6XYHMSuOJ3/wDrV6X8UvEDX+oLpMD4jj5mwevoK9BtLKw8LeHRb2UCW9paxkIijAJx94+5rwe5umurq4u5G3PK55P1rwsXVc3Y9fC0klcjlkC8Y4HQVl3uoiHIB+Y1LfXQgRiTyRXK318TuYn6VhCFzqlKxbn1EHLMc+grV8C6JL4z8RwWYmVLRCGuCTjK+lcOJpb26S2iJ3OcE+lfRHwc8D21vZee+Nkbbnf+Jz6fSujksc8p6Hqnh630bTbUafpMEcUMY24VQcn1zWx5yEeW4baKx31bT9LO21iUH2pgvL/Ul3RLtU/xdq2jWSVjhcG9SLV9EF4S1q2056E9axIvCN/cS/v5Vii9Qea3Lm4h0uIvc3G98dAeKof2vNd2zXESlYF/jPQ1xVo03LmsdEHJKxpW5tNHtiiPubux71lazqQhWOSUDbJ39q5fUPEhvbmO0hPLuF4rW8axGx0y3DHJjQE0lJyWmxXKk9R7Ty2uJFO+FxWT/YNhFcy6pawpDLLzNt/ipdJvXkt4X5eFuCD2q1LGbeQ7PmibqD2rRXsD3NHTb2JUVeNoHHPet+2ma3tDNeOLeA8jP3j+FYHhrSo9k+s3PFtb52Rn+Jv8KytX1a51a4aSZiVH3EHRRXdhqH2mctWetkbl74tt45c2FsGYf8tn/wAKzLrxNqV2cyXRA9F4rHCMckkYH6Vi6n4x0PRmIuLtZZB/BGea7VaJiotnSNeyucvI7E+rUx5ic5OT9a81vvjVYxuY7O0bg9ZazpvjHckblS1Gewpc77D5EepSSsW4z+dSw3ksLqyuw9t1eQJ8X75jkJa/jWtp3xbik/4/LTPvHS532HyntWm+Jry3IAkyD2PNbpm0vxBD5Wp2ccmeOmDXmHh/xTpOtlRBcLHIekbnmu4sVkjK7h171ouWSszNprY6C38Prpdg0Oj7fK6iP0pbTRi0X2nUXyw/gqbTbpoioBOKt65azXNoJbdsN3FZVcOkroI1XezMLUtUE2LW0QjsMCootB8n/SdRkwoGQmetadra2+lQi4kPmTNzk9q5jxX4mMaSr1YjCqK8upG2r3OyLb0RV1HWpdS1OPTdPjOHO35ew9aZ4qjg0W1awWQljHuc+prV8GWH9j6KdVu0Bu7g5XPVRXK+LLoXt9K8h5ZcAVnKnZXe7NIyvIreCIP7S8M38Dj5N5IPpUFjNJY3BtLlsY+6x71c8IyHTNMngwP3pJqhrai4UHOJEPBqJtJKxtFO5cu3WWNo22sG71QsJjDKY2Y5B4qrbXGYmWRiGFVZ73yrhdvzDuayi9TZLQ7a21HG0McitmG7R1AVsZ/nXD2N+rAAn6Gte0uWfHzdOhrYzaO3tGLJyef50VT0afzIdrk7h0oraKVjmlufHc2m5PSq50o/3a6jyQT0oNspr0fbMx9gjmE0ojtxUy6YF7V0Qt164pfIGelHt2NUEc8NNpTp/wDs10H2cdhQbcZ6Uvbh7BHOHTHdlRF3SOdqD1Y9K+ovhH4Aj8G+HII2AF5egT3DY5XP8NeV/C7wuniLxlbRyr+4tgZm/wB4dK+lbSPeJJ+noPSsqlRy0BQUTnvHEnleG78g9EAGK8HJAjCjp1r3bxjC114Z1FV9M4rwaWTEOD1wa86otTvovQ57V7nMjDPA7Vy17cEbm7CtnUpS0khzXMziS+Zkj4RerV00Y9yakjW8LlUZ7plBJOAT2r6I+G2tRnS0gQk7jt696+ctLH2eFVXnB5r1f4eakkLKGbBBqKu9ybXR7wtlp9oDNMd7kZHpmsvWPFwtISkRCLjAC1y2q+JHXkSHaBxXNW+srfarEspJXeCa5ZVG3aIlT6s7rRtLu/Etx9p1ItDYLyATgvUni/XYobRbG0URwKNvHek1bxGFgjjgYRxoNoA71xrXB1XUUR2OA3StGktESk27sv8AgDQrjVNfW8uFMdrDkgsPvGun8dul0ssKnIC/lT5dYhsIIorUKiomOK5i81M3RlLPkt0Fa6KPKibNu7F8Nz+RYmInIU1q3s5ki3xHHGMVzOnyfZ2cN3q29+3lOIznHSnHQGmz0fUoPs3gqzVflDgF8dzXnusataaLaNdXUgRFHC92r1Hw75HifwhFAWG5U2E/3Wr5O+NOualYeKbnSryB4vIGIlbgOPUeteuleK5TgTs3zEXjX4mX+oK0dvIbW36BFPzN+Necza0z5M0pBb+8csfxqqrSTszSNuJPQnpXR+GvDsGuI6WVgty8TZnkmbaiL65raFK25lKrc50X6K+I0Zz1+Y1taRompaqv26IQraKfn3EZA7nFT3PhZJNZ+w232OYRfOT5vGPQGrkc/h+6vTHaCeO6iQosKE7T6/Wq5kuhNm+oan4VmtJEmtbuDUopV3JHFgMn1rKluYpCIhG9synDEt3qK01G20O/ndZ5EuX+Ulj90fSuisfDOiWVzBPrmpF4b8FldOTGfeolUV9i4wfcTQZLY3UMF1ftHEePPj4KmvcvBviS80GxO7UotasIzgqDiSMevvXztKlnptxcvpt6Zog2F3Dk02z1W4s7j7StxLG2c4B+VqJQTV0OM2nZn3F4f1K01qxW+sJRJE3Ud1/CunUn+z5D6Ia+V/hl8UJv7bs0gBWSciOSAdZR6gV9J+KdYj0TQXct+8dOF781HP7juOULyVjgr7xGVeSJnOVbA56VUjuLO4uYpZQHKHPPOa8/fxAZr2cu38Rqxa61HHk7jntXhyleVz1FTsj1LUtf863CIAiAYC1xV9N5l0GYg+pqvNd6hNAsjWl1sbowQ81saP4K1PXJVNwDZ25Gd5+8R9KUuaQJxiU4ZJZF2wRO+3qVGRVC7nZOXDKxPIYYr1XS9OtPDlp9jgKkd3YZLGoNS0zSdXAS9gjcdmHFQ4x2uNVPI8juZgVyMDPese9vHWdQvAPH1r0zWfhhb3kZGl37xHGRGRx+dedeJ/C3iDw66mTT3nQfxwDfml7No2hVix1oLu0QyiTzk6lR1FdLo2oJOqshyD2PUVxOm6o0c6mTMTZ5Ruv5VuzQSRn+09OJZhzJCP4h6iqXmXJLoel6VdHcqjrRWB4a1mO8jWRGGcfMp6g0VadjmcdTxQKcUoFOBHTpRtrrEJilAAzS47ClxxSGGBijbSg4xS4oA9R+AlqpudWuj95CFB+te0QR+XYk8gnmvI/gNEDY623fzFr2GH57bYTk7acUc9R6mLPbi6juLZuFljIx74r5w1i3k025u7SQYkidsg/WvpCaQxyrJjhTg14z8ftBm0y2/wCEisomaC4+S4K/wt2rnlC7OinOyPEr24e8u2ghzjPzmpTbKqCOJQBjr60/S7QxWe5/vuclvWtiHSzLCJH+VB0HrWr7IfmzN0K2SXzI2wXWuu0O3ktpY5V3Bc1zN7ayaXIl9ZoWIPzj1rq9H1+yvY4wCI3P3kPY0p02xKRuajdtIOuRjoKzLWR4LrzFOCO5rXstHv8AXrlrbSrZpn/ix0X3zXoWifB/TEtA+t3DTXJHKxnG32rGNBthKskcbpUWo+IZjHYRtOw6kdF+tdbZ/CrUA6ST30SMeW2HkV3OnaHp3hXSmi0q3KDqT/EfxrGm1+QtuztI/h7mpquNLczjJz2Kdz8NlkwIdQfeBzvPFchqHhTW9Lu2X7OblOzRelek6Ve3epT8R4jHViKm1a7SwbglR3OafNFx5hXadjxa7uZrSfZPG0DHjDjmqs+rrbAgN/8AXr1u4i0/VImNxbwzKR12/MK8+8TfDlXilvNDdmkXn7O55b6UoyTNLmv8JPFVzG92isSgbPlmup8ceCPCPxdsRBq6G1vUGI7uPAkX2z6V4x8NtWudP8T3FpfRtbMw2GNxj5vrXrDtgbkJBz2r1aFVxjY4q1NN3R4F46/Zm8Y+GQ02lxLrFiAdn2UZlx6tXNeJ/Ecuj+FLTwzFp8ukT4zeO6EPKe4Jr6ptPEmpadxFcNt9CakutZ0nWojHrPh7T7sMMFzCN3511xxETklQZ8UaZqFpp8kN3FGZZAwDg5wVro9e8RaZfS/bdE0t7GWPaqyAYXH8Wa+jrv4W/CfV3Lz+H7uFjyfKk2imT/BH4VXMHkrbX8SennU1OLdwcJWPn3wrrOheGHn1DxJoq6u9xkwnGVH1rlNev01HUp7tAbW3kOUiGcIPavqqH4DfCWGLZJFqUijopnOBV61+F/wp0rBt9Dubgj/nq+4VLlFO5SUrWPj2CP7ZKkVkktw5/hjUkmvS/CnwT8ceLPLCaW+m2vBM98MLj2r6StbzQtFTZpHhrTbfHR3gBb86q6n4m1K8Uo9wyR/3EOFH4UpV4paDjRk3qZPgn4b+EvhSV1CaYatroHyyHlIT/s1D4u8U3GrCeadjhVO1R0FUL+8CEnPPvXPXEzakz2aN/rBgnNcFes5HdSpKOpxMd8DcuzyFdzcZ716j8K/CV3eap/aOs2WywQZiSUf60+tU/BfgzRxqkV1PCbk2x5B5Un6V7HH9vki2w2m2J+E9FHtXGrbo2nLoacUE3lovlxNGp+VABwKW8aWSMiIAMo4B6iq+nxXOmKxurlWzyB6VBd6shn+WTLewqpVIpWZzqLuc9ql5dW+RPC5OeoFS6Ja3WsuoaJ4YByXb+lar30rYaaBcZ43DrUlxriWpWNtsYI+6vFcUaUVLmbOlybVkiTWJI7C3RbfBK8Gsy01eQEp8rA9VNZEmqvrgvo7fOYAWFUNMma8sWnikzcRnDLnrWkpty90I07LUt+IPA+i+J0aY262d4nKPEMbj71zmlaDfWMxhuSivGeCvQiujGsTRMsdxGUZ+lTRSxm4Al6noTRz3dmaRukc5P4elsLhtVsEIB/18A7+496K7iOEF8J0I5B70Vryk858yBu9P3U4Q07yvauokjD04c07y+aeI+OlA7DBj0pSeMU/ZmjZz0ouFj1X4A3Hzazak8swIFey2fBCt1K8V4Z8Cm8vXb8ZwSua9wjbeI5lPHeqic1VGffxeU0inkdcVnS2tprdhcaRqMayQTIVIb37/AFFbuqxBoxMoz61z15GwAdDh15BHesp+6y6buj5x8Z+CrzwFrTWNyGexfLWk2OGX0J9fam2kUtyIwQVi9MV9E6hZaT410l9K1aJWb+EkfMjf3lrzjUPBU/hmcQXI324P7qYDhh7+9VTabLlJpWOY/slGQCOMt9RVC5+Hcus6hbR6dIbe5mYLgdvevQrazGMoowBjmus8LW9hpStd3cSm4x8hP8P0rapKMFdmSu9jpPBfhNPB+iQ6Xb4mkCgzXDdWbuM1vutvEnzBMjvmuc/4SGa8GyAdegHU1JbWFxIpe8l2L6E81j9ZVvdRDpO/vGlLqsK5XcGUdaymGlGbzntgWJz1rM1jVbSxPlxc/wBTSafbTSW7anqRMEKjKRngtXDOtKbOiNNRRvS6pHBEcKsQxwBXDa/4hDM2GLID82a1E8zUrC81F3zDGCIxXG6AserC+gmO5jnbnsaxqOc7RNKcYrU3oZdkMV5ZMZIyPmT0qf8AtJLqItF+7lHUVgeDb2ax1KfTrk4Rc7Qa1ZhALppEAGTyKvk5UPdlO8sNPvpYbq7gUTxNlZF4/Ornmtb5D5KN91qp3Ti3ckHdC36VN9ti8kxPllxwfSurD1XszKpAJZVP8VRiTt2rA1DVTpMwEjFoX+63pVyz1FLsp5X7wscAL1NdlzGxtwsRjpVpZQFycCmxaFq2xX+xSAN0yK6LRPCskRW61PaUAyIx/Wi7JbRiIJZRuWGQjsQtQSyhDtb5D7iu5ku4oTtjWOOMcYFVGt9PumLyRROf51j7dXtcpRfY4meZAPvD86yr67KISTjFei3fh/S7iFnMBVD0Ze1cD4p+GV1qSFtE1ZozjO2duD7VftF1BK5wGv8AiWG2DAOC/oKxtP1tVR5lkPnPwtZeu6Le6Dfva6tFIk54VmHyv9Kp6SpkvFZgQF6DtSqWsaQvc918Azx2dvHJcrmR+a9Cn165eFREoVema8e8N6gziNGyAB2r1rwtHDNCLm5OVXordK5o3eiKqJLUjgstU1a4OQ0aDrI3FWrubT9AgLLtmuFHLtUuu+JEhRlhkCqBj61geH9Dm8R3bXd2zCzU9/4z6Vi4+9yw1YltzS2LWm3s+opLqV4uLdPuZ4ya5mG5fX/E7QxufLijZse9dL4yvYLOyezt8RwxrwFrj/h8hN7e3jt1+UfjUSjd2NoPS5pfDuJ5dR1h5W/dgMhFZOnFtI8RzwjJjdiR6V1emG10SC7RQBJMxbPc1y9//wAfay5G4HOaJVFFKxcYOTdzoLl4ryELKo3p901k3N3LEoc4/dnrSR3fck56UjwyakrWsMRkZ+OO3vWLqczuaxp23Om0zVI7y1ilQ7pTxtFFYs97aeB7AQq63GpOOAOQlFdKqOxn7LseJ+YM0ocVXVGp4iY13mRMGBoDjFMWJqXyjilcB28dKN4pBATThAaAsd58E5Qvi6SPP+siY4r2zTrlY5GtpDy3K5rwf4SuYPHMA/vQsK9l1CNw25CQ6/Mpqtlcwnq7HTMq+XtPKnj6Vz2pQNbv5ZHyHlTWhpGsR6jAUfidOHTuferl1Al3GYn5B6N6USSkjOLcWcHfwMrCWNiko5BHeprXxDb6jAdP1uNRngORx+HpVvU7Oa1kKSLlP4Wrn7+3DKVkXJPcVxtuLOyNpIXVPCs+nj7Rp7G6tD821TygrJOqb51Qq3HAVuOatWer6lobAxOZrf8A55t0xWqtzoHimRWfbaXq9GPAqasnUVmVGHJqa+im30W2+0SndK4yM9qztY8QyTNtRyWc4Ciq3iGw1eztzJHF9pgUcMnJ/KsTwpeCbU2mu0KmLor8HP0qJN2UUSor4jsdG8MxWjpqusybnA3JCf4frXPeMfEU+r6hHY2QYh22Ki9Kta3r8tyHZnx2AzVDwlEtvevqc+GKZ2Z9apW+FEcr+JnS66IdA8JR6ZGf3nl5b1JNcH4B2JfXLSnGQcVpeKNWfUHLFvXArn9CYwXEm4kA0OSciowtE62+jt/tZvEVRMo4I71kXl4GmLjIzSvqCTttJwelVL+aMRlcjI6GplqNE/ngptflTzmrejNDKJFfDY6ZrnYLpnJB+6Kmsr9I7zajYOO1XR0YVFoXfEehm9tpFgZehKAjqfSui+D3gm60Gxl1DWYM3lxxDG3IRPX61d8G6cmsTm6vIyYYT8o7MfWu4aWeR1WOLAAwCa9DZXOKT6EkjyQorPKMDt6VDOftEBCy5J96zr611F5iSu4emaz3a8ilCrE34Vx1K8trFwpLcx9bk1aznKR2sjrngjnNXNA0nU7+UTX6tbRLztzy1an22+DqGUBfVhUF/rZidE8zc7HGBXHHlUrs6HdqyNLVr2JLdoAMLjtXLyNNb7XSUNE/f0qr4q1SWzu4beR9okwD+NZUeoCwuzp85LxTDcjHtVyquTHGlZGpqlhp+t2klpqtokyuuBIR8y/Q9q8a13wFc+Frvzo2a4sHPyyD/ln7GvWUurixm8meNmhP3XAzxRerHqFrNbPh4ZBg+xrWNRrRiUepwXhy42yIhHSvTYdTFtZKC3bgCvNdMsk0y+ktS2TG2Uz1IrqWuDNEExjirb00Ha71Jp7sXd3FAzFvMYAn0Fd/qGp2mlaZb2kEoVY0GQOpNecWAMdys5Iyh6UutahO8rOWJB6VjGTgnYcqfO0O8R35u9zFyS3QVJoflWdiADgscmsAXBkI3dKsxXm0BdwP+zWSkb8hu3l3vO4NzmsyebkYOeavado+pawMxwGOPHLycCrkzeH/AAkN95OL67HRV5Cms3BstNIi03Q7rUU82X/RrccmR+MioNX8Y2miW7afoIEkx4ec1ia74t1LxCxjB+zWvaNOM1gHZCcDr3b0raFKwm29yaS4keUzzyF5m5LMc4ornNY1Vpm+y2jc5+Z6K6VTIdSw0AenNOGKh3jIoMtdBiifcAegpd4qsXNKHJosBZ3rxS+aAeKqbiaXdRYDqvh5P5XjWxK9SpFe6XfzSSKeCDxXz54IuDF4x00juwH619AaicXUp9/6Va2OepuYV79otLgXdoxSZT+DfWun0PxFb6pFwQlyB88R7/SufvF8yM88djWDcRTW8ouIGaOZTkMD1rK7i9B8qluen3UKXkBRlBQ/mprj9a0S6sMyIPNh7EdvrU2h+O7eZktdT/cXB4D/AML11RCtHlQJEb3yKJJTFFuDPLplDg7CMdwaxr62UkEKVcdCK9L1XwnBcq0tmfKmPOD0NcVqWm3lgSt5EU9GxnNc8oNHVComZ9h4u1vQGXbJ9piHVJOcCt638WeF9bI+32/2G5b70uMZNctcQtKMhwfSsi8tVk+9HkUkynFM73UvBsl/A0ui6hDcoecM3NZLx6notssM9lMCP4scVx6zahphD2N5NERzjdxWrZfFjX7AiPUIYr+EcEEc0WTFysbPqCyksxw3PBqC2uGaTggHFbifEHwZro2atppsXPG5RU8Hhnwlqnz6Nr6RMe0ppcgmznXu9k2BkkVG140suDjHc+lbeofDXXVcy2N1BfJ22MBmsa68NeIdOiLTaRMSAc7TmjlFcz7u/FoXk3EAdPesjSdcln1D5QGaRwoH1NY+tzaxczeVJp11Aidf3Zre8AWCSeIbCCSCXG7cxZCK0jG2opM+m9DsYdI0e1QnGxAzZ7k02812RztgXAPAI71WurtfsoV2JBACj0q3p9pFa2v2uQqzdQD2Fb80paI43FJ3ZWtrfU7mQvPO0MQ5561W1LXLTTQwjlLv0qn4h8RSOTBC+XbgKtN0Pw6ltG2paxy3VI2PT61zT1fLE2irK8itfX99JZ/a58wwn7oPBaovB9sdXuW1G5Q+RATsJ6MazNe1C58V6zFplowESvtIXoorrrie30azi0+HaoRcMR61jCkr8zNZS0sec/EGdr/XYFiJI3YFaWu2SXOmWrRgLNCoyR1xWBd3IvdbMwBIjbA9q6Ga53RkkFm2YIApJ7l20Rd07VrcwRxz7ZEK7TntWPfo1tPI0DHymPaqdvDci5zFbysrdtprXTR9UuovLW0fB9e1HNcfLZnEeKtGuL7yb/TJdl7Gfunow9Kz7PxoYJja6vG1rOgwSeM16XD4HvmKtcXUMAXnkiqOr+B/Bs8gl8QahHM6/wDPNsGtoSdrMTS6HPWevWFw2EuVLZ5A71pPa3mpnZY2ks2e4HAqWDWvh/4aONI083cg7uM1Be/E/VJwU021is4z6LzUyVy43Lln8Pr/AGibV723soOpGcNip21bwj4YUpaRnUrgdGfkA1xV1f6lqbl729lkz1G7ioVSKL7uM/ShRSHr1Oh1Xxzq+sjyo2Fnb9AsfHFYO1FcvI+9z1JPJpjztGCxKqPesy61uNDsiXzH9qpRHdI07icRoGkIRBWJfai96xjt8pEOre1RyvJdndcMVT0oigln+S3TCZ5Y1oopEOV9iksUaMQAQh/76eitqPTRbR+aB5jjuegoqucXL3MFZT3pfOParn2ZKX7PHW1zNIprK3UinCQ1bFsh9KDbIPSi4FTzKd5h7VYMCdsUeSuKLgXPCUxj8V6Y3/TZR+tfR2qfLdSHs3H6V83aKy2+vadIO1wg/WvpDUx5sjH+8AR+VN7GUlqY87bAQT8prPuAXUA8jtVyf5kKN94VQBxmOTj0Pasmx2Mm/tVfIZRn1pNK8Wat4ccKGNzbZ/1TnoPrVu4wCd4yvY1l3USsDjBB7+lS/ItarU9F0Tx1o2ukKkot7juknAz7Vt3FtFdRFJY1dWHTqD+NeEXNpsO9OSOjdxV3SfHWuaCwAn+1wjrHMc4+lNS7kun/ACne6z4FgmRnsJPIf+4ORXF6roWoaSM3NuXX+9GN1dbpHxY0TUWEd9G1lKeGL8Ia6hRZatEXs7mKdD2QjGKlwT2HGclueFTeS4IPB9D1rIvLLJyK9u1rwNp1+uHt1iY/xwjmuD1j4Z39szNp10JF7LL1rNxaNo1EzzuW3OeY1I+lQG1jzxvjb1U4rZ1DSda02RludNmKj+JV4rKkvolbbJlG9GFPU00LNtqGrafg2Wqzx47bia2rT4leMLIY+3idR2dQa5wzIeVKkVHJLjpkCnYTSZ3UHxp1hBi70m0nx3KCrcPxps9wafw7Ajf3kABrzMzEc5GPekWU56qRTsTypHscHxv0ORVWfTnXHTA6VdPxn8N3Mflus6L6Ba8QDkngpUm49DspWfcXLHsez23xJ8GQ3QuAJfMHQlelXLr4reF9Qi8qa5m2f7teF7AeTspTGM8bKnlY+VHsFr4/8GaZO09oZlkY8tt5p138UvCk7bpVuJievy9a8fCgHqgp/mKOhUUcnQfKj0wfEzwfaEm30d3Y85I61HN8ZbKP/jz0BD7tXnXmg9Nv40iyAjJIp8gWR3M/xl1twRa6bbwDtjHFZdx8R/Fl5nGoCEHsormzIp9aUSKg+6op8qDQ0JtX1i9P+l6rM+eoziokjRjuZ5JG92JqsLmIcsU9aX+1YkyAM49KagHMaEabfuxqM1ZQlRzgH1rEfVJn/wBWgHuaj8+4k5d2A9BT5BOZtzXkMQy0gb2FUZdXJGIo/wATVRI3k4SMsfU1IumyyNmVgq+go5UtxczexWleWY5llO3uAetPt4XZtsUXzHua1LbToUAwMkd2q9FbAHC4FLn7Dt3KMGnD7053nsvpV+KDaMsAF9BU6xhRwv1NNaVVXBBJpavcL22Kt633Id/lo3U0Uy8hW4KeYxA9fSiiwGEN3TNIS3rU+fakI9q6DMiDsO9G5sd6kIFLtyKAK5d85prSPVggUxtvemgZFBO0N7ZyA/dnQ/rX068n2m0tZh/HGG/Svly5bam4DlPmFfRnhPVF1bwnpVwhBZYQjezVT2MZ7hdxlmLD7w/WsqciTcQfqK2r1S2WHBFYtxFuPmxnEg6r61yy0ZpHUqTHjA+b1FUZ0V+Yzg9xVpnSViV4cdVrPmfDncNp9aLlWIJgrdflIrPuIUcdAD61cklIyCNwPeqr42nb8w9KLhYyLy3UjD7T6ZGahgvb/S5A9nfTwkcgKx2/lV6Z1PVePftVOX5jgYIpjOm0r4w6/poCX0SX0Q4+UYOK6nTvjB4c1AhbyNrBz/fGea8nkQnj7vvVKaBWPzAH6CmTyo+hYdQ0XWEza30FwD2YgZrN1TwPp1/l2trZs9QgBNeBGFoXzFLKh9VYitCz8V+I9L4tNVmUDs3NS4lJWO+1X4R2UzFoYJoj7NwK5a/+Ft7ASLe8Ix0DDNWLP4veJLZQtwiXQ77uM1q23xq3AC80aMepU5qdSrnCT+C9dhYgMJMf7NZ8+ia1bNiS2z9K9bj+K/hm7AFzayRnvhKkPjHwPdjDSSA+61XMwPGHg1KLhrRhTQbraS1q4r2Y3Pgq5B23iDP97tUL6X4Un5j1GAf8CFPm7geP/aZgMeQ9J9slBP7h69Yl8OeHnHy6nbfXcKqSeGNC6HVbf/voUcyDU80F9KTxbsTSC9n5xbMa9Dl0HQlH/IUiz7EVWk03w/EP+Qln6CnzINTiPtN2+QIcfWkU6gSOAo9a68xeHkPN1Kx9lpHn0JRhfNk+q0c6DU5Tyb13+aQAU/7DK/DPIT7V039oacgxDYb/APepV1VzzFYxRijnCxz8OmTEjETt9RV2PRblsZQJ7k1pNfXsnWRVA7AUwK0hy8hb8aOdi5UQrpKRD95cAeoFWIre3j+5Gz+hNTRpH2BNTheRgAD1qbsehCquxyFCj2FTJAO53H0p+wDnOfapN6hewFKwOQLH0AA4p2QCcjFM84dFXPvUZbuxyfSnYVyQykgheBVdiAck/jQ754PAqGRlI69O1IZDeuGgJDEAfrRVW/ulSHDdeyjqaKeoyAkt0FJ83FL5oFKZx6VuZibSaQhqU3IHGKabkelADWDDtUb5+pqT7QD2pjygnIGKaEyrMScg9K9J+CviMGO88P3D4ZSZ4snqPSvN5mGDkc1BY6vcaBqtvqtrnfA4YqP4x6VT1Rmz6XmnDqeOfQ1m3UQK70ODUGk61BrdlBqdswaKcZYA/dfuKtSMHzt/Kud6lJW1Ma5gWYlwTHKP4h3rJurryDtu0wOzjpXQXcalTt4asq6RWTbIgPs3es2jRMySykFo3DLVWRkPIO00+401Y332spjc8lW6GqU14I/kuojGT/EOhpXKsLK6kYcD61QnMe/ajgHFWJZFMLNGwYY45rI1TVZI7G3s7ZEMkwLSPt5U1aY7EzSsB/CwqEkMeG21S0vUftYaORlE0RwQO9W2Xfkggj0FXsSRN+NRsQeuTUmGUEE49qiL88rQgGMinPJBNMMaqflenlge/NRsitzu5oAUQtnIIYU14M4zGDShdv8AFTt5A+9RYCA28Z5MNN8mMcGJh+Jqz5hH8VIZWJ7UWC5B5UY6Rtj1yacI4hxsP5mpDI3oKQyt3UUrBcUQREf6up0iiGMRioBKSPumpFlbHSjlC5Ose3naBT15/wDrVEsjdh+dOV/U4osFyzGAx74qdQMdse9VEKj+I08MuOjGiwiyQp5LflUkbRr0XNVlc44XH1qVAW6sBSAtrJj0ApPPGe5NQqF6kk1Krr2WgCQO7L/dFLuVe+TUbPjjIxUMlxGvT5j7UDtctGQkfLgVE8oXuM1XaZ2TsijuapG7DORArTN69hU3K5TQeVmG48KOpqjJfF8paruPdz0FIySSc3Dk+irxTgoVQgULnsKLBexBDb7HLMfMk7ue1FWGAjGeg9KKuwrlUxknANBhOKkxijoOprUgh8nuTSGPuelSck4zQUz3oAh8sGgoMU/YVyc0hYAYp3AgkUEGqFxHkHArSc57GqcxzkYq0ZyLPgvxjL4Q1MW9wzPpc7AOv/PM+or3KG8juI0nglWSKQAq6ng1843cIdSGA5ra8EePp/Ckw0+/ZptMkbCseTD/APWqalK+qFGdtGe5TsJCQeCO9Zt1l12sMj1oh1CK6gS4t5knhkGVdTkGhpQc46elct+5qkZ88agHjIH6VnXEZZD8odfetO5Q9VY/SqEz7eOQaYzCuNPjdW8pjCfSsXV7l9OaHYNzhCp44bNdPcAFTuXB9a5fxOri1GwbscZ7imlqVfQ5vQbiKK6uN77GLdzXSLI+0Hduz3FcdpkOLtlnTeCeD6V0Ass4NvcyL/sk8VpJakRNL7QDnOc03zAeP8mqBbUbc4ZElX1XrTf7TCHEsEsfvjioKZfZkzyKiYRnsari+t5ek4B96XfuX5HBp3HYmGB904oKA9Sc1AS454zS+c2ORTESFPRqPKJGck4qH7RjqooF19RQImCAdzS4XPINRfaQR1xSecuPvnNAE/y9DmngAYwPxqr5yd2p3mqRw5oAt8d2NKhUVVWcY6k1IJuRikBcXC8hak3HHUCqXmkjgml8wIPmcD15pAXw4xjOaXzFUdTmsw6hbQjm4X6CmNq6A/uoZZT7CgqxtLcBffNOErYJ+7n1rGS51C4+5EkQP9/rUqWkjjM9y5P91TxSGi1LeQxnDzbj6LzUYu55ji2gwv8Affg0sdvBFho41z6nrU43t8xxSsDZGtqXO65laU/3emKsKpRcKoUdsUg6dx/WmtIByc49KqwmxQOckfSmyusY46/zqGa4HQE5qtLMRyzU0hXHzTnu3PpRWbc3aKGdnCKOrHtRVqDZDmkbjW7Ac9KaYiBRRQihPJJ7YpphbOBRRTExPJbPNIYcUUUCI3iY1WkgPJooqkxMpS25INZ11ZK4ZSAfaiitYsykibw34s1LwfcbYy1xYsfngY5x9PSvVdH8Tafr9sLnT5iw/jjI5Q0UVFammrlUpPYutc729+1QSlZPvDn1oorii9TpZn3KvHxjctZd2iTAggZ9DRRWhJhtpcSTM0QCseop2Chw8fHqKKKYAGB+65FDox+8qv8AUUUUhlSe2gbO+FR9BVT+zoGPySSKfrRRTEM+wTI37u6OB60vk6gpOLiNvwoopgN/4mQPIRvwprTX4PNsD+NFFAgFzd97P9aPtF1nH2P9aKKADzr4niyx+NOE2ongWoH40UUwHKdTb+FFH0oljv8AGTcIv4UUUgGR2dxcf627OP8AZ4q3Hptupyzyt9WoooBFiO1gTlYlP1GasxDpgKv0FFFFgLCqW6tkCphGowSMUUUWFcflRyF4qN7hQeOaKKBjHmcjJOBUMkuR3oopgitLMqcDJqjf38FlCZrlyF7D1ooq6aTdiZuyujj9T1WfVpMDMcA6J6/Wiiiu9JJaHBJts//Z" alt="Bake N Wok logo" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">
     </div></div>
-    <h1>Bake 'N' Wok</h1>
-    <div class="tag">Where Sweetness Meets Spice</div>
+    <h1 class="notranslate">Bake 'N' Wok</h1>
+    <div class="tag notranslate">Where Sweetness Meets Spice</div>
     <div class="veg-badge">🌿 100% Pure Veg</div>
     <p class="sub">Fresh momos, sizzling wok food, cheesy pizzas &amp; more — ordered online, delivered hot.</p>
   </div>
@@ -960,7 +996,7 @@
 
   <div class="promo-banner">
     <div class="promo-banner-inner">
-      <div class="ptxt"><b>Everyday Value</b><span>100% Pure Veg · Fresh &amp; Hot, order milte hi banta hai</span></div>
+      <div class="ptxt"><b>Everyday Value</b><span>100% Pure Veg · Fresh &amp; Hot, cooked the moment you order</span></div>
       <div class="pprice">₹299+</div>
     </div>
   </div>
@@ -982,7 +1018,7 @@
   <footer class="site-footer">
     <div class="foot-brand">Bake 'N' Wok</div>
     <div class="foot-tag">Where Sweetness Meets Spice · 100% Pure Veg</div>
-    <button class="join-rider-foot" onclick="openPage('joinrider')">🤝 Delivery Partner Banein</button>
+    <button class="join-rider-foot" onclick="openPage('joinrider')">🤝 Become a Delivery Partner</button>
     <div class="foot-links">
       <a onclick="closePage()">Home</a>
       <a onclick="openPage('about')">About Us</a>
@@ -994,7 +1030,7 @@
       <a onclick="openPage('partner')">🛵 Book a Rider</a>
       <a onclick="openPage('scanpay')">💳 Scan &amp; Pay</a>
       <a onclick="openRating('')">⭐ Rate Us</a>
-      <a onclick="openMyOrders()">📦 Mere Orders</a>
+      <a onclick="openMyOrders()">📦 My Orders</a>
     </div>
     <div class="foot-contact">
       📍 Dayal Nagar, Faridabad - 121003 &nbsp;·&nbsp;
@@ -1031,8 +1067,8 @@
     </div>
     <div style="padding:18px;">
       <div id="rateStars" class="rate-stars"></div>
-      <textarea id="rateComment" rows="3" placeholder="Khana kaisa laga? (optional)" style="width:100%;box-sizing:border-box;margin-top:12px;border:1.5px solid var(--gold-light);border-radius:12px;padding:10px 12px;font-size:14px;font-family:inherit;"></textarea>
-      <a href="https://www.google.com/maps/search/?api=1&query=Bake+N+Wok+Dayal+Nagar+Faridabad" target="_blank" style="display:block;text-align:center;margin-top:10px;font-size:13px;color:var(--flame);">⭐ Google par bhi review karein — humein bahut madad milegi 🙏</a>
+      <textarea id="rateComment" rows="3" placeholder="How was the food? (optional)" style="width:100%;box-sizing:border-box;margin-top:12px;border:1.5px solid var(--gold-light);border-radius:12px;padding:10px 12px;font-size:14px;font-family:inherit;"></textarea>
+      <a href="https://www.google.com/maps/search/?api=1&query=Bake+N+Wok+Dayal+Nagar+Faridabad" target="_blank" style="display:block;text-align:center;margin-top:10px;font-size:13px;color:var(--flame);">⭐ Please review us on Google too — it really helps us 🙏</a>
     </div>
     <button class="var-done" onclick="submitRating()">Submit ✓</button>
   </div>
@@ -1052,7 +1088,7 @@
 
 <!-- ================= ZARA AI ASSISTANT ================= -->
 <div class="zara-nudge" id="zaraNudge" onclick="this.classList.remove('show');openZara()">
-  👋 Kuch help chahiye? Main Zara hoon — dish suggest bhi karti hoon, cart me bhi daal deti hoon!
+  👋 Need help? I'm Zara — I can suggest dishes and add them to your cart!
 </div>
 <button class="zara-fab" id="zaraFab" onclick="openZara()">
   <span class="zdot"></span> Ask Zara
@@ -1069,8 +1105,8 @@
   <div class="zara-msgs" id="zaraMsgs"></div>
   <div class="zchips" id="zaraChips"></div>
   <div class="zara-input">
-    <button id="zaraMic" class="zmic" onclick="zaraVoice()" title="Hindi me boliye">🎤</button>
-    <input id="zaraInput" type="text" placeholder="Type karein ya 🎤 dabakar boliye…"
+    <button id="zaraMic" class="zmic" onclick="zaraVoice()" title="Tap to speak">🎤</button>
+    <input id="zaraInput" type="text" placeholder="Type here or tap 🎤 to speak…"
       onkeydown="if(event.key==='Enter')sendZara()">
     <button onclick="sendZara()">➤</button>
   </div>
@@ -1092,7 +1128,7 @@
 
 <!-- ================= TRACK ORDER SCREEN ================= -->
 <!-- ================= KITCHEN DISPLAY (KDS) ================= -->
-<div class="kds-overlay" id="kdsOverlay">
+<div class="kds-overlay notranslate" id="kdsOverlay">
   <div class="kds-head">
     <span>👨‍🍳 Kitchen View — Bake 'N' Wok</span>
     <button onclick="closeKDS()">× Band karo</button>
@@ -1105,7 +1141,7 @@
   <div class="page-box">
     <div class="page-head">
       <button class="pback" onclick="document.getElementById('myOrdersOverlay').classList.remove('show')">←</button>
-      <h2>📦 Mere Orders</h2>
+      <h2>📦 My Orders</h2>
     </div>
     <div class="page-body" id="myOrdersBody"></div>
   </div>
@@ -1157,7 +1193,7 @@
     <input id="custNotes" placeholder="e.g. less spicy, no onion">
     <div id="loyaltyBox"></div>
     <div class="coupon-row">
-      <input id="couponInput" placeholder="🎟️ Coupon code (jaise WELCOME50)" style="text-transform:uppercase;">
+      <input id="couponInput" placeholder="🎟️ Coupon code (e.g. WELCOME50)" style="text-transform:uppercase;">
       <button type="button" onclick="applyCoupon()">Apply</button>
     </div>
     <div id="couponMsg" style="font-size:12.5px;margin:4px 2px 8px;"></div>
@@ -1176,14 +1212,14 @@
       <p style="font-weight:700;color:var(--maroon);font-size:20px;">₹<span id="payAmt2">0</span></p>
       <p style="font-size:13px;color:#8a7a63;">Scan this QR with any UPI app (GPay / PhonePe / Paytm) to pay</p>
     </div>
-    <a class="btn pay-now" id="payNowBtn" href="#" onclick="payNowTapped()">📲 Pay Now — apna UPI app kholein</a>
-    <p style="font-size:12px;color:#8a7a63;text-align:center;margin:-2px 0 10px;">Mobile par tap karte hi PhonePe / Paytm / GPay khul jaayega, amount bhara hua. Laptop par upar QR scan karein.</p>
+    <a class="btn pay-now" id="payNowBtn" href="#" onclick="payNowTapped()">📲 Pay Now — open your UPI app</a>
+    <p style="font-size:12px;color:#8a7a63;text-align:center;margin:-2px 0 10px;">On mobile, this opens PhonePe / Paytm / GPay with the amount filled in. On a laptop, scan the QR above.</p>
     <button class="btn gold" onclick="confirmOnWhatsapp()">✅ I've Paid — Send Order on WhatsApp</button>
   </div>
 </div>
 
 <!-- ================= ADMIN LOGIN ================= -->
-<div class="overlay" id="adminLoginOverlay">
+<div class="overlay notranslate" id="adminLoginOverlay">
   <div class="sheet">
     <h2>Admin Login <button class="close" onclick="closeSheet('adminLoginOverlay')">×</button></h2>
 
@@ -1216,7 +1252,7 @@
 </div>
 
 <!-- ================= ADMIN PANEL ================= -->
-<div id="adminScreen">
+<div id="adminScreen" class="notranslate">
   <div class="hero" style="padding:24px 20px;">
     <h1 style="font-size:28px;">Admin Panel</h1>
     <div class="tag">Bake 'N' Wok Manager</div>
@@ -1469,7 +1505,7 @@ function renderLocalBoyButtons(){
 async function bookDelivery(partnerKey, orderId, dropAddress, dropPhone){
   if(partnerKey === 'localBoy'){
     const boy = DELIVERY_BOYS.find(b=>b.active);
-    if(!boy){ alert('Koi active delivery boy nahi hai. Admin > Settings me add karein.'); return { ok:false }; }
+    if(!boy){ alert('No local delivery rider is available right now. Please book a rider on Porter / Borzo, or choose Pickup.'); return { ok:false }; }
     const msg = encodeURIComponent(
       `Naya delivery order!\nOrder ID: ${orderId}\nPickup: ${PAGE_INFO.pickup}\nDrop: ${dropAddress}\nCustomer Phone: ${dropPhone}`
     );
@@ -1660,7 +1696,7 @@ async function uploadRiderDoc(input, field){
   const file = input.files && input.files[0];
   if(!file) return;
   const status = document.getElementById('st_'+field);
-  status.textContent = '⏳ Upload ho raha hai…'; status.style.color = '#8a7a63';
+  status.textContent = '⏳ Uploading…'; status.style.color = '#8a7a63';
   try{
     const b64 = await _compressImage(file, 1000);
     const fd = new FormData();
@@ -1670,11 +1706,11 @@ async function uploadRiderDoc(input, field){
     const data = await res.json();
     if(data && data.success && data.data && data.data.url){
       riderDocs[field] = data.data.url;
-      status.innerHTML = '✅ Upload ho gaya <a href="'+data.data.url+'" target="_blank">(dekhein)</a>';
+      status.innerHTML = '✅ Uploaded <a href="'+data.data.url+'" target="_blank">(view)</a>';
       status.style.color = '#1f6b5e';
     } else { throw new Error('failed'); }
   }catch(err){
-    status.textContent = '❌ Upload nahi hua — dobara try karein.'; status.style.color = '#c0392b';
+    status.textContent = '❌ Upload failed — please try again.'; status.style.color = '#c0392b';
   }
   input.value = '';
 }
@@ -1689,17 +1725,17 @@ function submitRiderForm(){
   const msg = document.getElementById('riderMsg');
 
   if(!name || phone.length!==10 || !dob || !addr){
-    msg.textContent = '❌ Naam, sahi 10-digit phone, DOB aur address zaroori hain.'; msg.style.color='#c0392b'; return;
+    msg.textContent = '❌ Name, a valid 10-digit phone number, date of birth and address are required.'; msg.style.color='#c0392b'; return;
   }
   if(!bike || !vnum){
     msg.textContent = '❌ Bike aur vehicle number bharein.'; msg.style.color='#c0392b'; return;
   }
   // zaroori documents
   const need = {photo:'Profile photo', aadhaar:'Aadhaar', dl:'Driving License', rc:'RC'};
-  for(const k in need){ if(!riderDocs[k]){ msg.textContent = '❌ '+need[k]+' upload karein.'; msg.style.color='#c0392b'; return; } }
-  if(!agree){ msg.textContent = '❌ Declaration par tick karein.'; msg.style.color='#c0392b'; return; }
+  for(const k in need){ if(!riderDocs[k]){ msg.textContent = '❌ Please upload '+need[k]+'.'; msg.style.color='#c0392b'; return; } }
+  if(!agree){ msg.textContent = '❌ Please tick the declaration.'; msg.style.color='#c0392b'; return; }
 
-  msg.textContent = '⏳ Bhej rahe hain…'; msg.style.color='#8a7a63';
+  msg.textContent = '⏳ Sending…'; msg.style.color='#8a7a63';
   sheetPost({
     action:'riderRegister',
     time: new Date().toLocaleString(),
@@ -1712,7 +1748,7 @@ function submitRiderForm(){
     status:'Pending Approval'
   });
   setTimeout(()=>{
-    msg.textContent = '✅ Registration ho gaya! Hum documents check karke aapse sampark karenge. 🙏';
+    msg.textContent = '✅ Registration received! We will verify your documents and contact you. 🙏';
     msg.style.color = '#1f6b5e';
     // form clear
     ['rd_name','rd_phone','rd_dob','rd_addr','rd_city','rd_bike','rd_vnum','rd_bankname','rd_acc','rd_ifsc'].forEach(i=>document.getElementById(i).value='');
@@ -1839,7 +1875,7 @@ function updateDeliveryStatusUI(){
   const banner = document.getElementById('deliveryStatusBanner');
   const deliveryBtn = document.getElementById('modeDelivery');
   if(!CONFIG.shopOpen){
-    banner.innerHTML = `<div class="delivery-status off">🔴 Aaj hum band hain — abhi order nahi le sakte. Baad me aana! 🙏</div>`;
+    banner.innerHTML = `<div class="delivery-status off">🔴 We're closed right now and not taking orders. Please check back later! 🙏</div>`;
     if(deliveryBtn){ deliveryBtn.disabled = true; deliveryBtn.style.opacity = .5; }
     return;
   }
@@ -1917,7 +1953,7 @@ function renderMenu(){
         ${items.map(renderItemCard).join('')}
       </div>`;
   }).join('');
-  wrap.innerHTML = html || `<div class="no-results">"${searchTerm}" ke liye koi dish nahi mili. Doosra naam try karo. 🍽️</div>`;
+  wrap.innerHTML = html || `<div class="no-results">No dishes found for "${searchTerm}". Try another name. 🍽️</div>`;
   // While searching, hide the reels + category nav so results stay in focus
   const reels = document.getElementById('videoReels');
   const catnav = document.getElementById('catNav');
@@ -2142,7 +2178,7 @@ function applyCoupon(){
   const subtotal = cartSubtotal();
   if(!c || !c.active){
     appliedCoupon = null;
-    msg.textContent = '❌ Yeh coupon valid nahi hai.';
+    msg.textContent = '❌ This coupon is not valid.';
     msg.style.color = '#c0392b';
   } else if(subtotal < c.minOrder){
     appliedCoupon = null;
@@ -2151,7 +2187,7 @@ function applyCoupon(){
   } else {
     appliedCoupon = code;
     const d = couponDiscount(subtotal);
-    msg.textContent = `✅ ${code} lag gaya — ₹${d} ki bachat!`;
+    msg.textContent = `✅ ${code} applied — you save ₹${d}!`;
     msg.style.color = '#1f6b5e';
   }
   renderBill('billBox2');
@@ -2328,7 +2364,7 @@ function openCheckout(){
    PLACE ORDER + UPI QR
    ============================================================ */
 function placeOrder(){
-  if(!CONFIG.shopOpen){ alert("Sorry, hum abhi band hain. Baad me order karein 🙏"); return; }
+  if(!CONFIG.shopOpen){ alert("Sorry, we're closed right now. Please order later 🙏"); return; }
   const name = document.getElementById('custName').value.trim();
   const phone = document.getElementById('custPhone').value.trim();
   const addr = document.getElementById('custAddr').value.trim();
@@ -2382,7 +2418,7 @@ function placeOrder(){
 /* Razorpay Checkout popup — asli secure payment yahin hota hai */
 function openRazorpay(o){
   if(typeof Razorpay === 'undefined'){
-    alert("Payment system load nahi hua — internet check karke dobara try karein.");
+    alert("The payment system didn't load. Please check your internet connection and try again.");
     showUpiQr(o); return;
   }
   const options = {
@@ -2402,13 +2438,13 @@ function openRazorpay(o){
     },
     modal: {
       ondismiss: function(){
-        alert("Payment cancel ho gaya 🙏\nAapka order pending hai. Dobara pay karne ke liye phir se Place Order karein.");
+        alert("Payment was cancelled.\nYour order is still pending. To pay, tap Place Order again.");
       }
     }
   };
   const rzp = new Razorpay(options);
   rzp.on('payment.failed', function(resp){
-    alert("Payment fail hua: " + ((resp.error && resp.error.description) || "dobara try karein"));
+    alert("Payment failed: " + ((resp.error && resp.error.description) || "please try again."));
   });
   rzp.open();
 }
@@ -2436,7 +2472,7 @@ function payNowTapped(){
     document.removeEventListener('visibilitychange', onBack);
     setTimeout(()=>{
       if(!currentOrder) return;
-      if(confirm("Payment ho gaya? \u2705\n\nOK dabate hi aapka order WhatsApp par bhej diya jaayega.")){
+      if(confirm("Payment done? \u2705\n\nTap OK to send your order on WhatsApp.")){
         confirmOnWhatsapp();
       }
     }, 600);
@@ -2484,7 +2520,7 @@ function renderTrackSteps(stepIndex){
     return `<div class="track-step ${cls}"><div class="dot">${icon}</div><div class="lbl">${s}</div></div>`;
   }).join('');
   if(stepIndex >= TRACK_STATUSES.length-1 && !trackRated){
-    html += `<button class="rate-cta" onclick="openRating('${trackOrderId||''}')">⭐ Khana kaisa laga? Rate karein</button>`;
+    html += `<button class="rate-cta" onclick="openRating('${trackOrderId||''}')">⭐ How was the food? Rate us</button>`;
   }
   document.getElementById('trackSteps').innerHTML = html;
 }
@@ -2568,12 +2604,12 @@ function openMyOrders(){
   const ph = savedPhone();
   const body = document.getElementById('myOrdersBody');
   if(!ph){
-    body.innerHTML = `<p>Abhi tak is device se koi order nahi hua. Pehla order karte hi yahan dikhega! 🍽️</p>`;
+    body.innerHTML = `<p>No orders from this device yet. Your first order will show up here! 🍽️</p>`;
   } else {
     const p10 = String(ph).replace(/\D/g,'').slice(-10);
     const mine = ORDERS.filter(o => String(o.phone).replace(/\D/g,'').slice(-10)===p10);
     if(!mine.length){
-      body.innerHTML = `<p>Aapke number (${esc(ph)}) se koi order nahi mila. Naya order karo — yahan dikhega! 🍽️</p>`;
+      body.innerHTML = `<p>No orders found for ${esc(ph)}. Place an order and it will show up here! 🍽️</p>`;
     } else {
       body.innerHTML = mine.map(o=>{
         const itemsTxt = Array.isArray(o.items) ? o.items.map(i=>`${i.name} x${i.qty}`).join(', ') : (o.items||'');
@@ -2615,7 +2651,7 @@ function submitRating(){
   sheetPost({action:'addRating', orderId:rateOrderId, stars:rateStars, comment, name, time:new Date().toLocaleString()});
   trackRated = true;
   closeRating();
-  alert("Shukriya! Aapka feedback mil gaya. 🙏");
+  alert("Thank you! We've received your feedback. 🙏");
   loadRatings();
 }
 
@@ -2828,7 +2864,7 @@ async function uploadProductPhoto(input){
   const file = input.files && input.files[0];
   if(!file) return;
   const st = document.getElementById('newItemUpSt');
-  st.textContent='⏳ Upload ho raha hai…'; st.style.color='#8a7a63';
+  st.textContent='⏳ Uploading…'; st.style.color='#8a7a63';
   try{
     const b64 = await _compressImage(file, 800);
     const fd = new FormData(); fd.append('key', IMGBB_KEY); fd.append('image', b64);
@@ -2888,11 +2924,11 @@ const ORDER_STATUSES = ["Pending Confirmation","Confirmed","Preparing","Out for 
 function statusMsg(o){
   const s = o.status;
   const tk = (CONFIG.tokenEnabled && o.token) ? ` (Token #${o.token})` : '';
-  if(s==="Confirmed")        return `Namaste ${o.name} ji! 🙏\nAapka order #${o.orderId}${tk} (₹${o.total}) CONFIRM ho gaya hai. Hum jald hi banana shuru kar rahe hain. 🍽️\n— Bake 'N' Wok`;
-  if(s==="Preparing")        return `Update: Order #${o.orderId}${tk} 👨‍🍳\nAapka khana abhi FRESH ban raha hai! Thodi hi der me tayaar ho jaayega. 🔥\n— Bake 'N' Wok`;
-  if(s==="Out for Delivery") return `Update: Order #${o.orderId}${tk} 🛵\nAapka order DELIVERY ke liye nikal chuka hai — garam-garam pahunch raha hai! 😋\n— Bake 'N' Wok`;
-  if(s==="Delivered")        return `Order #${o.orderId}${tk} DELIVER ho gaya! ✅\nUmmeed hai khana pasand aayega. 🙏\n\nAchha laga ho to Google par ⭐⭐⭐⭐⭐ review zaroor dein:\n${PAGE_INFO.googleUrl}\n\n— Bake 'N' Wok`;
-  return `Namaste ${o.name} ji! Aapka order #${o.orderId}${tk} (₹${o.total}) humein mil gaya hai. Jald confirm karte hain. 🙏\n— Bake 'N' Wok`;
+  if(s==="Confirmed")        return `Hello ${o.name}! 🙏\nYour order #${o.orderId}${tk} (₹${o.total}) has been confirmed. We'll start preparing it shortly. 🍽️\n— Bake 'N' Wok`;
+  if(s==="Preparing")        return `Update: Order #${o.orderId}${tk} 👨‍🍳\nYour food is being freshly prepared and will be ready soon. 🔥\n— Bake 'N' Wok`;
+  if(s==="Out for Delivery") return `Update: Order #${o.orderId}${tk} 🛵\nYour order is out for delivery and on its way to you, hot and fresh! 😋\n— Bake 'N' Wok`;
+  if(s==="Delivered")        return `Order #${o.orderId}${tk} has been delivered! ✅\nWe hope you enjoy your meal. 🙏\n\nIf you liked it, please leave us a ⭐⭐⭐⭐⭐ review on Google:\n${PAGE_INFO.googleUrl}\n\n— Bake 'N' Wok`;
+  return `Hello ${o.name}! We've received your order #${o.orderId}${tk} (₹${o.total}) and will confirm it shortly. 🙏\n— Bake 'N' Wok`;
 }
 
 function setOrderStatus(orderId, status){
@@ -3087,7 +3123,7 @@ let zaraOpened = false;
 function zaraSystemPrompt(){
   const menuList = MENU.filter(m=>m.stock).map(m=>`${m.name} (${m.cat}) Rs${m.price}`).join('; ');
   return `You are Zara, the friendly ordering assistant for "${CONFIG.restaurantName}", a 100% pure-veg cloud kitchen in Faridabad, Haryana. `
-    + `Reply in warm Hinglish, keep answers short (1-3 sentences). Help customers choose dishes and answer about menu, delivery and payment. `
+    + `Reply ONLY in ${zaraLangName()}, in a warm friendly tone, and keep answers short (1-3 sentences). Help customers choose dishes and answer about menu, delivery and payment. `
     + `Free-delivery service has NOT started yet: after order confirmation the customer books their own rider (Porter/Borzo/Swiggy Genie) from the app's Book a Rider section and pays the rider charge themselves; Pickup is also available. All food is pure veg. `
     + `Today's menu: ${menuList}. `
     + `If the customer wants to add something to cart, tell them to say exactly: add <dish name> (the app handles it). `
@@ -3101,7 +3137,7 @@ function openZara(){
   const n = document.getElementById('zaraNudge'); if(n) n.classList.remove('show');
   if(!zaraOpened){
     zaraOpened = true;
-    addZaraMsg('bot', `Namaste! 🙏 Main Zara hoon, ${CONFIG.restaurantName} ki assistant.\nMain dish suggest karti hoon, seedha cart me daal deti hoon (bolo "2 momos add karo"), order status batati hoon — aur 🎤 dabakar Hindi me bol bhi sakte ho!`);
+    addZaraMsg('bot', `Hi! 🙏 I'm Zara, ${CONFIG.restaurantName}'s assistant.\nI can suggest dishes, add them straight to your cart (say "add 2 veg momos"), and check your order status. You can also tap 🎤 and speak!`);
     renderZaraChips(['🥟 Popular dishes','add veg momos','📦 Order status','🎉 Party order']);
   }
 }
@@ -3124,8 +3160,8 @@ function renderZaraChips(chips){
 }
 function zaraChip(text){
   // Special action chips
-  if(text.includes('Rider book')){ closeZara(); openPage('partner'); return; }
-  if(text.includes('Cart kholo')){ closeZara(); openCart(); return; }
+  if(text.includes('Book a rider')){ closeZara(); openPage('partner'); return; }
+  if(text.includes('Open cart')){ closeZara(); openCart(); return; }
   document.getElementById('zaraInput').value = text;
   sendZara();
 }
@@ -3184,8 +3220,8 @@ function zaraOrderStatus(text){
     o = ORDERS.find(x=>String(x.orderId).toUpperCase().includes(id));
   }
   if(!o && ORDERS.length) o = ORDERS[ORDERS.length-1]; // isi device ka last order
-  if(!o) return `Is device par koi order nahi mila. 🙏 Order ID ke saath WhatsApp par poochh sakte ho: wa.me/${PAGE_INFO.whatsapp}`;
-  return `Order #${o.orderId} (₹${o.total}) ka status: **${o.status}** ${o.status==='Out for Delivery'?'🛵':o.status==='Delivered'?'✅':'👨‍🍳'}\nKoi dikkat ho to humein WhatsApp karein!`;
+  if(!o) return `I couldn't find an order on this device. 🙏 You can ask us on WhatsApp with your order ID: wa.me/${PAGE_INFO.whatsapp}`;
+  return `Order #${o.orderId} (₹${o.total}) status: **${o.status}** ${o.status==='Out for Delivery'?'🛵':o.status==='Delivered'?'✅':'👨‍🍳'}\nIf anything's wrong, message us on WhatsApp!`;
 }
 
 /* ---------- Zara: lead capture (party/bulk orders) ---------- */
@@ -3196,19 +3232,19 @@ function zaraLeadFlow(text){
     if(zaraLead.step==='name'){
       zaraLead.name = text.trim();
       zaraLead.step = 'phone';
-      return `Shukriya ${zaraLead.name} ji! Ab apna 10-digit phone number bata dijiye 📞`;
+      return `Thanks, ${zaraLead.name}! Now please share your 10-digit phone number 📞`;
     }
     if(zaraLead.step==='phone'){
       const ph = text.replace(/\D/g,'');
-      if(ph.length < 10) return `Yeh number sahi nahi lag raha 🤔 — 10-digit number bhejiye (jaise 9876543210).`;
+      if(ph.length < 10) return `That number doesn't look right 🤔 — please send a 10-digit number (e.g. 9876543210).`;
       sheetPost({action:'addLead', name:zaraLead.name, phone:ph, note:'Party/bulk enquiry via Zara', time:new Date().toLocaleString()});
       const nm = zaraLead.name; zaraLead = null;
-      return `Perfect ${nm} ji! ✅ Aapki details mil gayi. Hum jald hi call/WhatsApp karenge party order ke liye. 🎉\nJaldi ho to seedha call karein: ${PAGE_INFO.phone}`;
+      return `Perfect, ${nm}! ✅ We've got your details and will call or WhatsApp you soon about your party order. 🎉\nIn a hurry? Call us directly: ${PAGE_INFO.phone}`;
     }
   }
   if(/party|bulk|shaadi|shadi|birthday|event|catering|50 log|100 log|bada order/.test(q)){
     zaraLead = {step:'name'};
-    return `Wah! Party/bulk order ke liye hum special rate dete hain. 🎉\nApna naam bata dijiye, phir number — hum khud sampark karenge.`;
+    return `Great! We offer special rates for party and bulk orders. 🎉\nPlease tell me your name, then your number, and we'll get in touch.`;
   }
   return null;
 }
@@ -3229,17 +3265,17 @@ async function sendZara(){
   const cmd = zaraCartCommand(text);
   if(cmd){
     if(cmd.miss){
-      addZaraMsg('bot', `"${cmd.miss}" naam ki dish nahi mili 🤔 — search bar me dekh lo, ya bolo "popular kya hai?"`);
+      addZaraMsg('bot', `I couldn't find a dish called "${cmd.miss}" 🤔 — try the search bar, or ask "what's popular?"`);
       return;
     }
     const key = cmd.half ? cmd.item.id + '_h' : cmd.item.id;
     const unit = cmd.half ? cmd.item.priceHalf : cmd.item.price;
     changeQty(key, cmd.qty);
     const varLabel = cmd.item.priceHalf ? (cmd.half ? ' (Half)' : ' (Full)') : '';
-    let reply = `Ho gaya! ✅ ${cmd.qty} × ${cmd.item.name}${varLabel} (₹${unit * cmd.qty}) cart me daal diya. 🛒`;
+    let reply = `Done! ✅ Added ${cmd.qty} × ${cmd.item.name}${varLabel} (₹${unit * cmd.qty}) to your cart. 🛒`;
     const up = zaraUpsell(cmd.item);
-    if(up) reply += `\n\nIske saath ${up.name} (₹${up.price}) loge? Bolo "add ${up.name}" 😋`;
-    renderZaraChips(['🛒 Cart kholo', up?`add ${up.name}`:'🥟 Popular dishes']);
+    if(up) reply += `\n\nWould you like ${up.name} (₹${up.price}) with it? Say "add ${up.name}" 😋`;
+    renderZaraChips(['🛒 Open cart', up?`add ${up.name}`:'🥟 Popular dishes']);
     addZaraMsg('bot', reply);
     return;
   }
@@ -3250,13 +3286,13 @@ async function sendZara(){
 
   // 4) Delivery rate / rider helper
   if(/rider|porter|borzo|rate kya|kitne ki delivery|delivery rate|khud deliver/.test(text.toLowerCase())){
-    renderZaraChips(['🛵 Rider book karein','🥟 Popular dishes']);
-    addZaraMsg('bot', `Order confirm hone ke baad aap khud rider book kar sakte ho — Porter/Borzo par rate compare karke, payment bhi wahi karo. 🛵 Neeche "Rider book karein" dabao.`);
+    renderZaraChips(['🛵 Book a rider','🥟 Popular dishes']);
+    addZaraMsg('bot', `Once your order is confirmed, you can book your own rider — compare rates on Porter/Borzo and pay the rider there. 🛵 Tap "Book a rider" below.`);
     return;
   }
 
   // 5) AI / built-in jawab
-  const typing = addZaraMsg('bot typing', 'Zara type kar rahi hai…');
+  const typing = addZaraMsg('bot typing', 'Zara is typing…');
   let reply;
   if(ZARA_API_URL){ reply = await zaraAI(text); }
   else { reply = zaraLocal(text); }
@@ -3268,27 +3304,27 @@ async function sendZara(){
 function zaraLocal(qRaw){
   const q = qRaw.toLowerCase();
   if(/veg|non.?veg|egg|meat|chicken|ande/.test(q))
-    return `Humara saara khana 100% pure veg hai 🌿 — koi non-veg nahi. Tension-free order karo!`;
+    return `All our food is 100% pure veg 🌿 — no non-veg at all. Order with peace of mind!`;
   if(/deliver|charge|free|shipping/.test(q)){
-    renderZaraChips(['🛵 Rider book karein']);
-    return `Free delivery seva abhi shuru nahi hui hai 🙏 — order confirm hone ke baad aap khud rider book kar sakte ho (Porter/Borzo) aur uska charge khud decide karke wahi pay karo. Neeche "Rider book karein" dabao! 🛵 Pickup bhi available hai.`;
+    renderZaraChips(['🛵 Book a rider']);
+    return `Free delivery hasn't started yet 🙏 — once your order is confirmed, you can book your own rider (Porter/Borzo) and pay the rider there. Tap "Book a rider" below! 🛵 Pickup is also available.`;
   }
   if(/time|timing|open|band|khula|hours|kab/.test(q))
-    return `Hum roz khule rehte hain — abhi order kar sakte ho! Delivery aur Pickup dono available. 🕒`;
+    return `We're open every day — you can order right now! Both Delivery and Pickup are available. 🕒`;
   if(/pay|payment|upi|cash|paisa/.test(q))
-    return `UPI se online pay karo, ya delivery par bhi. Checkout par QR code mil jaayega. 💳`;
+    return `You can pay online by UPI, card or wallet at checkout. 💳`;
   if(/popular|best|recommend|suggest|tasty|acha|famous/.test(q)){
     const picks = MENU.filter(m=>m.stock).slice(0,4).map(m=>`${m.name} (₹${m.price})`).join(', ');
     renderZaraChips(['🥟 Momos','🍕 Pizza','🍔 Burgers','🍜 Chowmein']);
-    return `Yeh sab log bahut order karte hain: ${picks}. Bolo "add <dish ka naam>" — main cart me daal dungi! 😋`;
+    return `Our most-ordered dishes: ${picks}. Say "add <dish name>" and I'll put it in your cart! 😋`;
   }
   const hit = MENU.filter(m=>m.stock && (m.name.toLowerCase().includes(q) || m.cat.toLowerCase().includes(q)));
   if(hit.length){
     const list = hit.slice(0,5).map(m=>`• ${m.name} — ₹${m.price}`).join('\n');
-    return `Yeh mile "${qRaw}" me:\n${list}\n\nBolo "add <naam>" — main cart me daal dungi! 🛒`;
+    return `Here's what I found for "${qRaw}":\n${list}\n\nSay "add <name>" and I'll put it in your cart! 🛒`;
   }
-  renderZaraChips(['🥟 Popular dishes','🌿 Sab veg hai?','🛵 Delivery charge','🕒 Timings']);
-  return `Main dish suggest kar sakti hoon, cart me add kar sakti hoon (bolo "2 momos add karo"), order status bata sakti hoon, aur party orders me help kar sakti hoon. Kya chahiye? 🙂`;
+  renderZaraChips(['🥟 Popular dishes','🌿 Is everything veg?','🛵 Delivery charge','🕒 Timings']);
+  return `I can suggest dishes, add them to your cart (say "add 2 veg momos"), check your order status, and help with party orders. What would you like? 🙂`;
 }
 
 // Full AI via your Cloudflare Worker (used only when ZARA_API_URL is set)
@@ -3303,7 +3339,7 @@ async function zaraAI(text){
     const data = await res.json();
     const reply = data.reply || data.content
       || (data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content)
-      || 'Sorry, main abhi jawab nahi de paayi. Thodi der baad try karo. 🙏';
+      || "Sorry, I couldn't answer right now. Please try again in a moment. 🙏";
     zaraHistory.push({role:'assistant', content:reply});
     return reply;
   }catch(err){ return zaraLocal(text); }
@@ -3314,10 +3350,10 @@ let zaraRec = null, zaraListening = false;
 function zaraVoice(){
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
   const btn = document.getElementById('zaraMic');
-  if(!SR){ alert("Voice input is browser me available nahi. Chrome use karein."); return; }
+  if(!SR){ alert("Voice input isn't available in this browser. Please use Chrome."); return; }
   if(zaraListening){ try{zaraRec.stop();}catch(e){} return; }
   zaraRec = new SR();
-  zaraRec.lang = 'hi-IN';
+  zaraRec.lang = (window.BNW_LANG_SPEECH || 'en-IN');
   zaraRec.interimResults = false;
   zaraListening = true;
   if(btn) btn.classList.add('listening');
@@ -3585,22 +3621,22 @@ const PAGES = {
       <div id="localBoyBtns"></div>
       <p class="muted">In the app, put the <b>pickup address</b> (above) and your own drop address — the rate shows instantly. Pay the rider charge directly on that app.</p>`,
     hi: `
-      <p>Aap khud apna delivery rider book kar sakte ho aur in apps par <b>rate compare</b> kar sakte ho. Rider humare kitchen se aapka order uthaakar aap tak pahunchayega.</p>
+      <p>आप ख़ुद अपना डिलीवरी राइडर बुक कर सकते हैं और इन ऐप्स पर <b>रेट की तुलना</b> कर सकते हैं। राइडर हमारे किचन से आपका ऑर्डर लेकर आप तक पहुँचाएगा।</p>
       <div class="pickup-box">
-        <div class="pk-label">📍 Pickup address (app me yahi daalein)</div>
+        <div class="pk-label">📍 पिकअप पता (ऐप में यही डालें)</div>
         <div class="pk-addr">${PAGE_INFO.pickup}</div>
         <div class="pk-actions">
-          <button class="pk-copy" onclick="copyPickup()">📋 Address copy karein</button>
-          <a class="pk-map" href="${PAGE_INFO.mapUrl}" target="_blank">🗺️ Map kholein</a>
+          <button class="pk-copy" onclick="copyPickup()">📋 पता कॉपी करें</button>
+          <a class="pk-map" href="${PAGE_INFO.mapUrl}" target="_blank">🗺️ मैप खोलें</a>
         </div>
       </div>
-      <h3>Partner chunein aur rate dekhein</h3>
-      <a class="partner-btn porter" href="https://porter.in/" target="_blank">🛵 Porter par book karein</a>
-      <a class="partner-btn rapido" href="https://rapido.bike/" target="_blank">🏍️ Rapido par book karein</a>
-      <a class="partner-btn borzo" href="https://borzodelivery.com/" target="_blank">📦 Borzo par book karein</a>
+      <h3>पार्टनर चुनें और रेट देखें</h3>
+      <a class="partner-btn porter" href="https://porter.in/" target="_blank">🛵 Porter पर बुक करें</a>
+      <a class="partner-btn rapido" href="https://rapido.bike/" target="_blank">🏍️ Rapido पर बुक करें</a>
+      <a class="partner-btn borzo" href="https://borzodelivery.com/" target="_blank">📦 Borzo पर बुक करें</a>
       <a class="partner-btn genie" href="https://www.swiggy.com/genie" target="_blank">🥡 Swiggy Genie</a>
       <div id="localBoyBtns"></div>
-      <p class="muted">App me <b>pickup address</b> (upar wala) aur apna drop address daalo — rate turant dikh jaayega. Rider ka charge usi app par pay karein.</p>`
+      <p class="muted">ऐप में <b>पिकअप पता</b> (ऊपर वाला) और अपना ड्रॉप पता डालें — रेट तुरंत दिख जाएगा। राइडर का चार्ज उसी ऐप पर दें।</p>`
   },
   scanpay: {
     title: { en: "Scan & Pay", hi: "स्कैन करके पेमेंट करें" },
@@ -3609,9 +3645,9 @@ const PAGES = {
       <img src="${PAY_QR_DATA}" alt="Bake 'N' Wok UPI QR" style="display:block;max-width:280px;width:100%;margin:6px auto;border-radius:12px;border:1px solid #f0e8da;">
       <p style="text-align:center;" class="muted">UPI ID: <b>${CONFIG.upiId}</b><br>After paying, please share the payment screenshot on <a href="https://wa.me/${PAGE_INFO.whatsapp}" target="_blank">WhatsApp</a>.</p>`,
     hi: `
-      <p style="text-align:center;">Is QR ko <b>kisi bhi UPI app</b> (Paytm, PhonePe, GPay, BHIM) se scan karein aur amount daalein.</p>
+      <p style="text-align:center;">इस QR को <b>किसी भी UPI ऐप</b> (Paytm, PhonePe, GPay, BHIM) से स्कैन करें और राशि डालें।</p>
       <img src="${PAY_QR_DATA}" alt="Bake 'N' Wok UPI QR" style="display:block;max-width:280px;width:100%;margin:6px auto;border-radius:12px;border:1px solid #f0e8da;">
-      <p style="text-align:center;" class="muted">UPI ID: <b>${CONFIG.upiId}</b><br>Payment ke baad screenshot <a href="https://wa.me/${PAGE_INFO.whatsapp}" target="_blank">WhatsApp</a> par bhej dein.</p>`
+      <p style="text-align:center;" class="muted">UPI ID: <b>${CONFIG.upiId}</b><br>पेमेंट के बाद स्क्रीनशॉट <a href="https://wa.me/${PAGE_INFO.whatsapp}" target="_blank">WhatsApp</a> पर भेज दें।</p>`
   },
   joinrider: {
     title: { en: "Become a Delivery Partner", hi: "डिलीवरी पार्टनर बनें" },
@@ -3630,27 +3666,27 @@ function docRow(field, label, required){
 }
 function riderFormHTML(){
   return `
-  <p>Bake 'N' Wok ke saath jud kar apni marzi se kaam karein — jaise aap Rapido/Porter par karte hain. 🛵 Neeche form bharein, hum documents check karke aapse sampark karenge.</p>
+  <p>Join Bake 'N' Wok and work on your own schedule — just like on Rapido or Porter. 🛵 Fill in the form below and we'll contact you after checking your documents.</p>
 
-  <h3>Aapki jaankari</h3>
-  <input id="rd_name" class="rd-in" placeholder="Poora naam*">
+  <h3>Your details</h3>
+  <input id="rd_name" class="rd-in" placeholder="Full name*">
   <input id="rd_phone" class="rd-in" inputmode="numeric" placeholder="Phone number (10 digit)*">
-  <label class="rd-lbl">Date of Birth* (18+ zaroori)</label>
+  <label class="rd-lbl">Date of Birth* (must be 18+)</label>
   <input id="rd_dob" class="rd-in" type="date">
-  <input id="rd_city" class="rd-in" placeholder="Area / City (jaise Dayal Nagar, Faridabad)">
-  <textarea id="rd_addr" class="rd-in" rows="2" placeholder="Poora address*"></textarea>
+  <input id="rd_city" class="rd-in" placeholder="Area / City (e.g. Dayal Nagar, Faridabad)">
+  <textarea id="rd_addr" class="rd-in" rows="2" placeholder="Full address*"></textarea>
 
   <h3>Vehicle (Bike)</h3>
-  <input id="rd_bike" class="rd-in" placeholder="Bike model (jaise Splendor 2019)*">
+  <input id="rd_bike" class="rd-in" placeholder="Bike model (e.g. Splendor 2019)*">
   <input id="rd_vnum" class="rd-in" placeholder="Vehicle number (HR51 AB 1234)*" style="text-transform:uppercase">
 
-  <h3>Bank details (payment ke liye)</h3>
-  <input id="rd_bankname" class="rd-in" placeholder="Account holder ka naam">
+  <h3>Bank details (for payouts)</h3>
+  <input id="rd_bankname" class="rd-in" placeholder="Account holder name">
   <input id="rd_acc" class="rd-in" inputmode="numeric" placeholder="Account number">
   <input id="rd_ifsc" class="rd-in" placeholder="IFSC code" style="text-transform:uppercase">
 
-  <h3>Documents (photo kheench ke upload karein)</h3>
-  ${docRow('photo','📷 Aapki profile photo', true)}
+  <h3>Documents (take a photo and upload)</h3>
+  ${docRow('photo','📷 Your profile photo', true)}
   ${docRow('aadhaar','🆔 Aadhaar (front)', true)}
   ${docRow('aadhaarBack','🆔 Aadhaar (back)', false)}
   ${docRow('pan','💳 PAN card', false)}
@@ -3662,12 +3698,12 @@ function riderFormHTML(){
 
   <label class="rd-check">
     <input type="checkbox" id="rd_agree">
-    <span>Main 18+ hoon, meri di hui jaankari aur documents sahi hain, aur main traffic niyam maan kar surakshit delivery karunga.</span>
+    <span>I am 18 or older, the details and documents I have provided are correct, and I will follow traffic rules and deliver safely.</span>
   </label>
 
-  <button class="btn" style="margin-top:8px" onclick="submitRiderForm()">✅ Register karein</button>
+  <button class="btn" style="margin-top:8px" onclick="submitRiderForm()">✅ Register</button>
   <p id="riderMsg" style="font-size:13.5px;text-align:center;margin-top:10px;min-height:18px;"></p>
-  <p class="muted" style="margin-top:6px;">Sawaal? WhatsApp: <a href="https://wa.me/${PAGE_INFO.whatsapp}" target="_blank">${PAGE_INFO.phone}</a></p>`;
+  <p class="muted" style="margin-top:6px;">Questions? WhatsApp: <a href="https://wa.me/${PAGE_INFO.whatsapp}" target="_blank">${PAGE_INFO.phone}</a></p>`;
 }
 
 function renderPage(){
@@ -3755,6 +3791,74 @@ if('serviceWorker' in navigator){
     navigator.serviceWorker.register('sw.js').catch(()=>{});
   });
 }
+
+/* ================= LANGUAGE (default English) =================
+   English = base text. Hindi = Google + our hand-written Hindi pages.
+   Other Indian languages = Google Translate. Choice saved per device. */
+const BNW_LANGS = [
+  {c:'en', n:'English',   e:'English',   s:'en-IN', z:'English'},
+  {c:'hi', n:'हिन्दी',     e:'Hindi',     s:'hi-IN', z:'Hindi (Devanagari script)'},
+  {c:'bn', n:'বাংলা',      e:'Bengali',   s:'bn-IN', z:'Bengali'},
+  {c:'te', n:'తెలుగు',     e:'Telugu',    s:'te-IN', z:'Telugu'},
+  {c:'mr', n:'मराठी',      e:'Marathi',   s:'mr-IN', z:'Marathi'},
+  {c:'ta', n:'தமிழ்',      e:'Tamil',     s:'ta-IN', z:'Tamil'},
+  {c:'gu', n:'ગુજરાતી',    e:'Gujarati',  s:'gu-IN', z:'Gujarati'},
+  {c:'kn', n:'ಕನ್ನಡ',      e:'Kannada',   s:'kn-IN', z:'Kannada'},
+  {c:'ml', n:'മലയാളം',    e:'Malayalam', s:'ml-IN', z:'Malayalam'},
+  {c:'pa', n:'ਪੰਜਾਬੀ',     e:'Punjabi',   s:'pa-IN', z:'Punjabi (Gurmukhi script)'},
+  {c:'or', n:'ଓଡ଼ିଆ',      e:'Odia',      s:'or-IN', z:'Odia'},
+  {c:'as', n:'অসমীয়া',    e:'Assamese',  s:'as-IN', z:'Assamese'},
+  {c:'ur', n:'اردو',       e:'Urdu',      s:'ur-IN', z:'Urdu'},
+  {c:'mai',n:'मैथिली',     e:'Maithili',  s:'hi-IN', z:'Maithili'},
+  {c:'bho',n:'भोजपुरी',    e:'Bhojpuri',  s:'hi-IN', z:'Bhojpuri'},
+  {c:'ne', n:'नेपाली',     e:'Nepali',    s:'ne-NP', z:'Nepali'},
+  {c:'gom',n:'कोंकणी',     e:'Konkani',   s:'hi-IN', z:'Konkani'},
+  {c:'doi',n:'डोगरी',      e:'Dogri',     s:'hi-IN', z:'Dogri'},
+  {c:'sd', n:'سنڌي',       e:'Sindhi',    s:'en-IN', z:'Sindhi'},
+  {c:'mni-Mtei', n:'ꯃꯤꯇꯩꯂꯣꯟ', e:'Manipuri', s:'en-IN', z:'Manipuri (Meitei)'},
+  {c:'sa', n:'संस्कृतम्',  e:'Sanskrit',  s:'hi-IN', z:'Sanskrit'}
+];
+function bnwLang(){ try{ return localStorage.getItem('bnw_lang') || 'en'; }catch(e){ return 'en'; } }
+function bnwLangInfo(){ return BNW_LANGS.find(l=>l.c===bnwLang()) || BNW_LANGS[0]; }
+function zaraLangName(){ return bnwLangInfo().z; }
+function bnwSetGtCookie(code){
+  const host = location.hostname, root = host.replace(/^www\./,'');
+  const val = code==='en' ? '' : '/en/' + code;
+  const exp = code==='en' ? ';expires=Thu, 01 Jan 1970 00:00:00 GMT' : ';max-age=31536000';
+  ['', ';domain=' + host, ';domain=.' + root].forEach(d=>{ document.cookie = 'googtrans=' + val + ';path=/' + d + exp; });
+}
+function setLang(code){
+  if(code === bnwLang()){ closeSheet('langOverlay'); return; }
+  try{ localStorage.setItem('bnw_lang', code); }catch(e){}
+  bnwSetGtCookie(code);
+  location.reload();
+}
+function openLangPicker(){
+  const cur = bnwLang();
+  document.getElementById('langGrid').innerHTML = BNW_LANGS.map(l=>
+    `<button type="button" class="lang-opt${l.c===cur?' active':''}" lang="${l.c}" onclick="setLang('${l.c}')"><span class="ln">${l.n}</span><span class="le">${l.e}</span></button>`
+  ).join('');
+  document.getElementById('langOverlay').classList.add('show');
+}
+function googleTranslateElementInit(){
+  try{ new google.translate.TranslateElement({pageLanguage:'en', autoDisplay:false}, 'gt_el'); }catch(e){}
+}
+(function initLang(){
+  const info = bnwLangInfo();
+  const lbl = document.getElementById('langLabel'); if(lbl) lbl.textContent = info.n;
+  document.documentElement.lang = info.c === 'mni-Mtei' ? 'mni' : info.c;
+  window.BNW_LANG_SPEECH = info.s;
+  if(typeof pageLang !== 'undefined') pageLang = (info.c === 'hi') ? 'hi' : 'en';
+  if(info.c !== 'en'){
+    bnwSetGtCookie(info.c);   // cookie kabhi clear ho gayi ho to dobara
+    const sc = document.createElement('script');
+    sc.src = 'https://translate.google.com/translate_a/element.js?cb=googleTranslateElementInit';
+    sc.async = true; document.head.appendChild(sc);
+  } else {
+    bnwSetGtCookie('en');     // purani translation cookie hatao
+  }
+})();
+
 </script>
 </body>
 </html>
