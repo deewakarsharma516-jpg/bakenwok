@@ -1191,6 +1191,9 @@
       <label>Admin Password</label>
       <input id="adminPass" type="password" placeholder="Enter password" onkeydown="if(event.key==='Enter')tryAdminLogin()">
       <button class="btn" onclick="tryAdminLogin()">Login</button>
+      <p style="text-align:center;margin-top:10px;">
+        <a onclick="showOtpBox()" style="font-size:13px;color:var(--accent,#f2641e);cursor:pointer;font-weight:600;">Password bhool gaye?</a>
+      </p>
     </div>
 
     <div id="otpBox" style="display:none;">
@@ -2691,9 +2694,10 @@ async function tryAdminLogin(){
       document.getElementById('adminPass').value=''; adminMsg('');
       openAdminPanel();
     } else if(r.blocked){
-      adminMsg('🔒 Account block hai. Google Sheet ke Config tab me newPassword likh kar dobara login karein.', '#c0392b');
+      adminMsg('🔒 Account block ho gaya. Email par OTP le kar naya password set karein.', '#c0392b');
+      showOtpBox();
     } else {
-      adminMsg('❌ Galat password. ' + (5-(r.tries||0)) + ' koshish bachi. Bhool gaye to Sheet ke Config tab me newPassword likhein.', '#c0392b');
+      adminMsg('❌ Galat password. ' + (5-(r.tries||0)) + ' koshish bachi.', '#c0392b');
     }
   }catch(e){ adminMsg('Net/Sheet problem — dobara try karein.', '#c0392b'); }
 }
