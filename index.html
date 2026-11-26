@@ -2040,6 +2040,12 @@ function applySharedConfig(st){
       if(st.welcome.text) CONFIG.welcomeText = String(st.welcome.text);
       if(st.welcome.coupon != null) CONFIG.welcomeCoupon = String(st.welcome.coupon);
     }
+    if(st.happy && typeof st.happy === 'object'){
+      if(Number(st.happy.percent) > 0) HAPPY.percent = Number(st.happy.percent);
+      if(st.happy.from != null) HAPPY.from = Number(st.happy.from);
+      if(st.happy.to != null) HAPPY.to = Number(st.happy.to);
+      if(st.happy.text) HAPPY.text = String(st.happy.text);
+    }
     if(st.coupons && typeof st.coupons === 'object'){
       Object.keys(st.coupons).forEach(k=>{
         const c = st.coupons[k], code = String(k).toUpperCase().replace(/[^A-Z0-9]/g,'');
@@ -2099,6 +2105,20 @@ async function loadProductsFromSheet(){
 
 /* Pichhli baar ka menu turant dikhao (purana built-in flash na ho), phir Sheet se taaza */
 const MENU_CACHE_KEY = 'bnw_menu_cache_v3';
+/* Jo dishes sirf app ke code me hain (Sheet me nahi), unhe Sheet me daal do —
+   taaki server har dish ka asli price jaane (bill check ke liye). Photo nahi bhejte. */
+let _menuSynced = false;
+async function syncBuiltinMenuToSheet(){
+  if(_menuSynced || !adminToken()) return;
+  _menuSynced = true;
+  const missing = MENU.filter(m => !m.fromSheet && m.name && m.price);
+  for(const m of missing){
+    await sheetPost({action:'updateProduct', name:m.name, category:m.cat, price:m.price, priceHalf:m.priceHalf||'',
+      desc:m.desc||'', img:'', stock:m.stock !== false, pieces:m.pieces||''});
+    m.fromSheet = true;
+  }
+  if(missing.length) console.log('Menu Sheet me sync:', missing.length, 'dishes');
+}
 function applyCachedMenu(){
   try{
     const c = JSON.parse(localStorage.getItem(MENU_CACHE_KEY) || 'null');
@@ -2206,7 +2226,14 @@ function sheetPost(payload){
    DELIVERY PARTNER (RIDER) REGISTRATION 🛵
    Documents ImgBB par upload hote hain, sirf link Sheet me jaata hai.
    ============================================================ */
-const IMGBB_KEY = "227103a6377eb18097b7a8e08f70c0d4";
+/* 📷 Photo upload ab Apps Script ke raaste — ImgBB key website me nahi */
+async function imgUpload(b64){
+  const res = await fetch(SHEET_URL, {method:'POST', credentials:'omit', redirect:'follow',
+    headers:{'Content-Type':'text/plain;charset=utf-8'},
+    body: JSON.stringify({action:'uploadImage', image:b64, token: adminToken()})});
+  const r = await res.json();
+  return (r && r.ok && r.url) ? {success:true, data:{url:r.url}} : {success:false};
+}
 
 /* Security helpers — koi <script> ya code page me na chipke */
 function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
@@ -2241,11 +2268,7 @@ async function uploadRiderDoc(input, field){
   status.textContent = '⏳ Uploading…'; status.style.color = '#8a7a63';
   try{
     const b64 = await _compressImage(file, 1000);
-    const fd = new FormData();
-    fd.append('key', IMGBB_KEY);
-    fd.append('image', b64);
-    const res = await fetch('https://api.imgbb.com/1/upload', { method:'POST', body: fd });
-    const data = await res.json();
+    const data = await imgUpload(b64);
     if(data && data.success && data.data && data.data.url){
       riderDocs[field] = data.data.url;
       status.innerHTML = '✅ Uploaded <a href="'+data.data.url+'" target="_blank">(view)</a>';
@@ -2378,7 +2401,7 @@ async function loadMyOrders(){
   const ph = savedPhone();
   if(!SHEET_URL || !ph) return;
   try{
-    const data = await jsonpGet({get:'myOrders', phone: String(ph).replace(/\D/g,'').slice(-10)});
+    const data = await jsonpGet({get:'myOrders', phone: String(ph).replace(/\D/g,'').slice(-10), key: custKey()});
     if(data && data.ok && Array.isArray(data.orders)){
       const local = ORDERS.filter(o => !data.orders.some(s => String(s.orderId)===String(o.orderId)));
       ORDERS = [...local, ...data.orders.map(o=>({
@@ -2402,15 +2425,29 @@ let _lastSettingsSync = Date.now();   // app khulte hi settings menu ke saath aa
 async function syncSettingsFast(force){
   if(!SHEET_URL || document.hidden) return;
   // Admin: har 10 sec (do screen sync). Customer: 2 minute me ek baar — Sheet par bheed nahi
-  const gap = window._adminOpen ? 10000 : 120000;
+  const gap = window._adminOpen ? 10000 : 60000;
   if(!force && Date.now() - _lastSettingsSync < gap) return;
   _lastSettingsSync = Date.now();
-  try{ const sd = await jsonpGet({get:'settings'}); if(sd && sd.settings) applyServerSettings(sd.settings); }catch(e){}
+  try{
+    const sd = await jsonpGet({get:'settings'});
+    if(sd && sd.settings){ if(force) Object.keys(_recentlyChanged).forEach(k=>{ if(!window._adminOpen) delete _recentlyChanged[k]; }); applyServerSettings(sd.settings); }
+  }catch(e){}
 }
 setInterval(syncSettingsFast, 10000);
 // Screen wapas kholte hi (tab switch/phone unlock) turant sync
 document.addEventListener('visibilitychange', ()=>{ if(!document.hidden) syncSettingsFast(true); });
 let orderCounter = 1001;   // (purana, ab use nahi hota)
+function custKey(){
+  try{
+    let k = localStorage.getItem('bnw_ck');
+    if(!/^[a-f0-9]{32}$/.test(k||'')){
+      const a = new Uint8Array(16); crypto.getRandomValues(a);
+      k = [...a].map(x=>x.toString(16).padStart(2,'0')).join('');
+      localStorage.setItem('bnw_ck', k);
+    }
+    return k;
+  }catch(e){ return ''; }
+}
 function adminToken(){ try{ return localStorage.getItem('bnw_admin_token') || ''; }catch(e){ return ''; } }
 function setAdminToken(t){ try{ if(t) localStorage.setItem('bnw_admin_token', t); else localStorage.removeItem('bnw_admin_token'); localStorage.removeItem('bnw_admin_session'); }catch(e){} }
 let _lastOrderId = 0;
@@ -2843,8 +2880,19 @@ function addCoupon(){
 const LOYALTY = { earnPer100: 10, redeemAt: 100, redeemValue: 50 };
 let useLoyalty = false;
 function loyaltyKey(phone){ return 'bnw_pts_' + String(phone||'').replace(/\D/g,''); }
-function getPoints(phone){ try{ return parseInt(localStorage.getItem(loyaltyKey(phone))||'0')||0; }catch(e){ return 0; } }
-function setPoints(phone, pts){ try{ localStorage.setItem(loyaltyKey(phone), String(Math.max(0,pts))); }catch(e){} }
+/* Points ab Sheet ke asli orders se (server) — phone me badalne se kuch nahi hota */
+let _serverPoints = 0;
+function getPoints(phone){ return _serverPoints; }
+function setPoints(phone, pts){ /* server khud ginta hai */ }
+async function refreshPoints(){
+  const ph = savedPhone();
+  if(!ph){ _serverPoints = 0; return; }
+  try{
+    const r = await jsonpGet({get:'points', phone: String(ph).replace(/\D/g,'').slice(-10), key: custKey()});
+    _serverPoints = (r && r.ok) ? (Number(r.points) || 0) : 0;
+  }catch(e){}
+  try{ renderLoyaltyBox(); renderBill('billBox2', true); }catch(e){}
+}
 function loyaltyDiscount(){
   if(!useLoyalty) return 0;
   const ph = savedPhone();
@@ -2858,7 +2906,7 @@ function renderLoyaltyBox(){
   const pts = ph ? getPoints(ph) : 0;
   if(!ph || pts <= 0){ el.innerHTML=''; useLoyalty=false; return; }
   const can = pts >= LOYALTY.redeemAt;
-  el.innerHTML = `<div class="loyal-box">💎 Aapke points: <b>${pts}</b>
+  el.innerHTML = `<div class="loyal-box">💎 Your points: <b>${pts}</b>
     ${can ? `<label style="margin-left:auto;display:flex;align-items:center;gap:6px;cursor:pointer;">
       <input type="checkbox" ${useLoyalty?'checked':''} onchange="toggleLoyalty(this.checked)"> ${LOYALTY.redeemAt} points = ₹${LOYALTY.redeemValue} off</label>`
     : `<span style="margin-left:auto;font-size:12px;color:#8a7a63;">₹${LOYALTY.redeemValue} off at ${LOYALTY.redeemAt} points</span>`}</div>`;
@@ -2898,7 +2946,8 @@ function saveHappy(){
   HAPPY.to = Math.min(24,Math.max(0,parseInt(document.getElementById('hhTo').value)||HAPPY.to));
   HAPPY.text = document.getElementById('hhText').value.trim()||HAPPY.text;
   renderHappyBanner();
-  alert("Happy Hours set! ✅ (On karna na bhoolein)");
+  saveSharedJson('happy', {percent:HAPPY.percent, from:HAPPY.from, to:HAPPY.to, text:HAPPY.text}).then(ok=>
+    alert(ok ? "Happy Hours set aur Sheet me save! ✅ (On karna na bhoolein)" : "Happy Hours set, par Sheet me save NAHI hua ⚠️"));
 }
 
 /* ---------- Location se delivery charge (Rapido-style) ----------
@@ -2999,6 +3048,7 @@ function closeSheet(id){
 
 function openCheckout(){
   closeSheet('cartOverlay');
+  syncSettingsFast(true);   // checkout khulte hi taaza dukaan status
   if(CONFIG.tokenEnabled) prefetchTodayCount();
   const total = renderBill('billBox2');
   document.getElementById('payAmt').textContent = total;
@@ -3012,13 +3062,25 @@ function openCheckout(){
     }
   }catch(e){}
   renderLoyaltyBox();
+  refreshPoints();
   document.getElementById('checkoutOverlay').classList.add('show');
 }
 
 /* ============================================================
    PLACE ORDER + UPI QR
    ============================================================ */
-function placeOrder(){
+/* Order dabate hi Sheet se taaza status — dukaan abhi-abhi band hui ho to order na jaaye */
+let _placing = false;
+async function placeOrder(){
+  if(_placing) return;
+  _placing = true;
+  try{
+    await Promise.race([syncSettingsFast(true), new Promise(r=>setTimeout(r, 4000))]);
+  }catch(e){}
+  _placing = false;
+  placeOrderNow();
+}
+function placeOrderNow(){
   if(!CONFIG.shopOpen){ alert("We're closed right now 🙏 Ordering will open as soon as we're back!"); return; }
   const name = document.getElementById('custName').value.trim();
   const phone = document.getElementById('custPhone').value.trim();
@@ -3143,7 +3205,10 @@ function finalizeOrder(o, pay){
     address: o.addr,
     items: o.items.map(i=>`${i.name} x${i.qty}`).join(', ') + (o.coupon ? ` [Coupon: ${o.coupon} -₹${o.discount}]` : ''),
     total:o.total, mode:o.mode, token:o.token,
-    status: o.status
+    status: o.status, method: pay.method, custKey: custKey(),
+    // Server khud bill ginta hai — isliye dish ka asli naam, qty, Half/Full, coupon, loyalty, delivery
+    lines: o.items.map(i=>{ const m = MENU.find(x=>x.id==i.id); return { n: m ? m.name : i.name, q: i.qty, h: String(i.key||'').endsWith('_h') ? 1 : 0 }; }),
+    coupon: o.coupon || '', loyalty: !!o.loyalRedeem, deliveryFee: o.delivery || 0
   });
   // Razorpay: order row ban jaane ke BAAD server verify kare (Razorpay se khud poochta hai)
   if(pay.method === 'razorpay'){
@@ -3201,7 +3266,7 @@ async function pollTrackStatus(){
   if(!SHEET_URL || !trackOrderId) return;
   try{
     if(document.hidden) return;
-    const data = await jsonpGet({get:'track', orderId: trackOrderId});
+    const data = await jsonpGet({get:'track', orderId: trackOrderId, key: custKey()});
     if(data && data.ok && data.order){
       const o = data.order;
       if(o){
@@ -3420,7 +3485,7 @@ async function tryAdminLogin(){
     } else if(r.ok){
       adminMsg('⚠️ Naya Apps Script deploy nahi hua — pehle deploy karein.', '#c0392b');
     } else if(r.blocked){
-      adminMsg('🔒 Account BLOCK. Neeche "Unlock karein" se OTP le kar kholein.', '#c0392b');
+      adminMsg('🔒 5 galat koshish — login ' + (r.minutes||15) + ' minute ke liye band. Turant kholna ho to email OTP se password badlein.', '#c0392b');
       showOtpBox();
     } else {
       adminMsg('❌ Galat password. ' + (5-(r.tries||0)) + ' koshish bachi.', '#c0392b');
@@ -3475,6 +3540,7 @@ function openAdminPanel(){
     if(r && r.ok && Array.isArray(r.value)){ DELIVERY_BOYS = r.value; try{ renderDeliveryBoyAdmin(); }catch(e){} }
   }).catch(()=>{});
   loadOrdersFromSheet();   // admin: poori list turant
+  setTimeout(syncBuiltinMenuToSheet, 4000);
   epPopulate();          // Edit Product dropdown yahin bhar jaayega (Sheet ka wait nahi)
   renderQuickStock();    // Stock fast-list bhi
   refreshAdminOrders();
@@ -3659,9 +3725,7 @@ async function uploadCardPhoto(input, id){
   if(st){ st.textContent='⏳ Upload ho raha hai…'; st.style.color='#8a7a63'; }
   try{
     const b64 = await _compressImage(file, 800);
-    const fd = new FormData(); fd.append('key', IMGBB_KEY); fd.append('image', b64);
-    const res = await fetch('https://api.imgbb.com/1/upload',{method:'POST',body:fd});
-    const data = await res.json();
+    const data = await imgUpload(b64);
     if(data && data.success && data.data && data.data.url){
       const url = data.data.url;
       updateItem(id, 'img', url);
@@ -3680,9 +3744,7 @@ async function uploadProductPhoto(input){
   st.textContent='⏳ Upload ho raha hai…'; st.style.color='#8a7a63';
   try{
     const b64 = await _compressImage(file, 800);
-    const fd = new FormData(); fd.append('key', IMGBB_KEY); fd.append('image', b64);
-    const res = await fetch('https://api.imgbb.com/1/upload',{method:'POST',body:fd});
-    const data = await res.json();
+    const data = await imgUpload(b64);
     if(data && data.success && data.data && data.data.url){
       document.getElementById('newItemImg').value = data.data.url;
       previewNewItemImg();
@@ -4286,8 +4348,10 @@ function openZara(){
   const n = document.getElementById('zaraNudge'); if(n) n.classList.remove('show');
   if(!zaraOpened){
     zaraOpened = true;
-    addZaraMsg('bot', `Hi! 🙏 I'm Zara, ${CONFIG.restaurantName}'s assistant.\nI can suggest dishes, add them straight to your cart (say "add 2 veg momos"), and check your order status. You can also tap 🎤 and speak!`);
-    renderZaraChips(['🥟 Popular dishes','add veg momos','📦 Order status','🎉 Party order']);
+    addZaraMsg('bot', zt(`Hi! 🙏 I'm Zara, ${CONFIG.restaurantName}'s assistant.\nI can suggest dishes, add them straight to your cart (say "add 2 veg momos"), and check your order status. You can also tap 🎤 and speak!`,
+      `नमस्ते! 🙏 मैं ज़ारा हूँ, ${CONFIG.restaurantName} की असिस्टेंट।\nमैं डिश सुझा सकती हूँ, सीधे आपके कार्ट में डाल सकती हूँ (बोलिए "2 वेज मोमोज ऐड करो"), और ऑर्डर का स्टेटस बता सकती हूँ। आप 🎤 दबाकर बोल भी सकते हैं!`,
+      `Namaste! 🙏 Main Zara hoon, ${CONFIG.restaurantName} ki assistant.\nMain dishes suggest kar sakti hoon, seedha cart me daal sakti hoon (bolo "2 veg momos add karo"), aur order status bata sakti hoon. 🎤 dabakar bol bhi sakte ho!`));
+    renderZaraChips(zt(['🥟 Popular dishes','add veg momos','📦 Order status','🎉 Party order'],['🥟 लोकप्रिय डिश','वेज मोमोज ऐड करो','📦 ऑर्डर स्टेटस','🎉 पार्टी ऑर्डर'],['🥟 Popular dishes','veg momos add karo','📦 Order status','🎉 Party order']));
   }
 }
 function closeZara(){
@@ -4311,7 +4375,7 @@ function zaraSpeakReply(text){
   let t = String(text)
     .replace(/\[\[[^\]]*\]\]/g,' ')
     .replace(/[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}\u{FE0F}\u{2190}-\u{21FF}]/gu,' ')
-    .replace(/₹\s*(\d+)/g,'$1 rupaye')
+    .replace(/₹\s*(\d+)/g, currentLang==='en' ? '$1 rupees' : (currentLang==='hi' ? '$1 रुपये' : '$1 rupaye'))
     .replace(/[•*_#>|]/g,' ')
     .replace(/\bx\b/gi,' ')
     .replace(/\s+/g,' ').trim();
@@ -4319,10 +4383,11 @@ function zaraSpeakReply(text){
   if(t.length > 900) t = t.slice(0, 900);  // sirf bahut hi lambe (pura menu) par limit
   zaraSpeak(t);
 }
+function zt(en, hi, hg){ return currentLang==='hi' ? hi : (currentLang==='hg' ? (hg||en) : en); }
 function addZaraMsg(who, text){
   const box = document.getElementById('zaraMsgs');
   const d = document.createElement('div');
-  d.className = 'zmsg ' + who;
+  d.className = 'zmsg ' + who + (['en','hi','hg'].includes(currentLang) ? ' notranslate' : '');
   d.textContent = text;
   box.appendChild(d);
   box.scrollTop = box.scrollHeight;
@@ -4335,8 +4400,8 @@ function renderZaraChips(chips){
 }
 function zaraChip(text){
   // Special action chips
-  if(text.includes('Rider book')){ closeZara(); openPage('partner'); return; }
-  if(text.includes('Cart kholo')){ closeZara(); openCart(); return; }
+  if(text.includes('Rider book') || text.includes('Book a rider') || text.includes('राइडर')){ closeZara(); openPage('partner'); return; }
+  if(text.includes('Cart kholo') || text.includes('Open cart') || text.includes('कार्ट खोलें')){ closeZara(); openCart(); return; }
   document.getElementById('zaraInput').value = text;
   sendZara();
 }
@@ -4442,8 +4507,9 @@ function zaraOrderStatus(text){
     o = ORDERS.find(x=>String(x.orderId).toUpperCase().includes(id));
   }
   if(!o && ORDERS.length) o = ORDERS[ORDERS.length-1]; // isi device ka last order
-  if(!o) return `I couldn't find an order on this device. 🙏 You can ask us on WhatsApp with your order ID: wa.me/${PAGE_INFO.whatsapp}`;
-  return `Order #${o.orderId} (₹${o.total}) status: **${o.status}** ${o.status==='Out for Delivery'?'🛵':o.status==='Delivered'?'✅':'👨‍🍳'}\nIf anything's wrong, message us on WhatsApp!`;
+  if(!o) return zt(`I couldn't find an order on this device. 🙏 You can ask us on WhatsApp with your order ID: wa.me/${PAGE_INFO.whatsapp}`, `इस डिवाइस पर कोई ऑर्डर नहीं मिला। 🙏 अपनी ऑर्डर ID के साथ WhatsApp पर पूछें: wa.me/${PAGE_INFO.whatsapp}`, `Is device par koi order nahi mila. 🙏 Order ID ke saath WhatsApp par poochho: wa.me/${PAGE_INFO.whatsapp}`);
+  const em = o.status==='Out for Delivery'?'🛵':o.status==='Delivered'?'✅':'👨‍🍳';
+  return zt(`Order #${o.orderId} (₹${o.total}) status: **${o.status}** ${em}\nIf anything's wrong, message us on WhatsApp!`, `ऑर्डर #${o.orderId} (₹${o.total}) का स्टेटस: **${o.status}** ${em}\nकोई दिक्कत हो तो WhatsApp पर मैसेज करें!`, `Order #${o.orderId} (₹${o.total}) ka status: **${o.status}** ${em}\nKoi dikkat ho to WhatsApp par message karo!`);
 }
 
 /* ---------- Zara: lead capture (party/bulk orders) ---------- */
@@ -4454,19 +4520,19 @@ function zaraLeadFlow(text){
     if(zaraLead.step==='name'){
       zaraLead.name = text.trim();
       zaraLead.step = 'phone';
-      return `Thanks, ${zaraLead.name}! Now please share your 10-digit phone number 📞`;
+      return zt(`Thanks, ${zaraLead.name}! Now please share your 10-digit phone number 📞`, `धन्यवाद, ${zaraLead.name}! अब अपना 10 अंकों का फ़ोन नंबर बताइए 📞`, `Thanks, ${zaraLead.name}! Ab apna 10-digit phone number bhejo 📞`);
     }
     if(zaraLead.step==='phone'){
       const ph = text.replace(/\D/g,'');
-      if(ph.length < 10) return `That number doesn't look right 🤔 — please send a 10-digit number (e.g. 9876543210).`;
+      if(ph.length < 10) return zt(`That number doesn't look right 🤔 — please send a 10-digit number (e.g. 9876543210).`, `यह नंबर सही नहीं लग रहा 🤔 — कृपया 10 अंकों का नंबर भेजें (जैसे 9876543210)।`, `Ye number sahi nahi lag raha 🤔 — 10-digit number bhejo (jaise 9876543210).`);
       sheetPost({action:'addLead', name:zaraLead.name, phone:ph, note:'Party/bulk enquiry via Zara', time:new Date().toLocaleString()});
       const nm = zaraLead.name; zaraLead = null;
-      return `Perfect, ${nm}! ✅ We've got your details and will call or WhatsApp you soon about your party order. 🎉\nIn a hurry? Call us directly: ${PAGE_INFO.phone}`;
+      return zt(`Perfect, ${nm}! ✅ We've got your details and will call or WhatsApp you soon about your party order. 🎉\nIn a hurry? Call us directly: ${PAGE_INFO.phone}`, `बढ़िया, ${nm}! ✅ आपकी जानकारी मिल गई, पार्टी ऑर्डर के लिए हम जल्द कॉल या WhatsApp करेंगे। 🎉\nजल्दी है? सीधे कॉल करें: ${PAGE_INFO.phone}`, `Badhiya, ${nm}! ✅ Details mil gayi, party order ke liye jaldi call ya WhatsApp karenge. 🎉\nJaldi hai? Seedha call karo: ${PAGE_INFO.phone}`);
     }
   }
   if(/party|bulk|shaadi|shadi|birthday|event|catering|50 log|100 log|bada order/.test(q)){
     zaraLead = {step:'name'};
-    return `Great! We offer special rates for party and bulk orders. 🎉\nPlease tell me your name, then your number, and we'll get in touch.`;
+    return zt(`Great! We offer special rates for party and bulk orders. 🎉\nPlease tell me your name, then your number, and we'll get in touch.`, `बहुत बढ़िया! पार्टी और बल्क ऑर्डर पर खास रेट मिलते हैं। 🎉\nपहले अपना नाम बताइए, फिर नंबर — हम संपर्क करेंगे।`, `Badhiya! Party aur bulk order par special rate milte hain. 🎉\nPehle apna naam batao, phir number — hum contact karenge.`);
   }
   return null;
 }
@@ -4480,7 +4546,7 @@ async function sendZara(){
   renderZaraChips([]);
 
   // Devanagari Hindi ho to pehle Hinglish me badlo (regex/menu-match ke liye)
-  const textH = /[\u0900-\u097F]/.test(text) ? zaraHindiToHinglish(text) : text;
+  const textH = /[\u0900-\u097F]/.test(text) ? zaraHindiToHinglish(text.replace(/लोकप्रिय/g,' popular ').replace(/शाकाहारी|वेज/g,' veg ').replace(/टाइमिंग/g,' timing ').replace(/चार्ज/g,' charge ')) : text;
 
   // 1) Lead flow (agar chal raha hai ya shuru ho raha hai)
   const lead = zaraLeadFlow(zaraLead ? text : textH);
@@ -4489,7 +4555,7 @@ async function sendZara(){
   // 2) Cart command — "2 veg momos add karo" / "दो मोमोज ऐड करो"
   const cmd = zaraCartCommand(textH);
   if(cmd && cmd.items && !CONFIG.shopOpen){
-    addZaraMsg('bot', `Sorry, we're closed right now 🙏 so I can't take orders. As soon as we open, yours will be the first! 🙂`);
+    addZaraMsg('bot', zt(`Sorry, we're closed right now 🙏 so I can't take orders. As soon as we open, yours will be the first! 🙂`, `माफ़ कीजिए, अभी दुकान बंद है 🙏 इसलिए ऑर्डर नहीं ले सकती। खुलते ही सबसे पहले आपका ऑर्डर! 🙂`, `Sorry, abhi shop band hai 🙏 isliye order nahi le sakti. Khulte hi sabse pehle aapka order! 🙂`));
     return;
   }
   if(cmd && cmd.items){
@@ -4503,11 +4569,11 @@ async function sendZara(){
       lines.push(`${c.qty} × ${c.item.name}${varLabel} (₹${unit * c.qty})`);
       lastItem = c.item;
     });
-    let reply = `Done! ✅ Added ${lines.join(' + ')} to your cart. 🛒`;
-    if(cmd.misses && cmd.misses.length) reply += `\n("${cmd.misses.join(', ')}" isn't on the menu 🙏)`;
+    let reply = zt(`Done! ✅ Added ${lines.join(' + ')} to your cart. 🛒`, `हो गया! ✅ ${lines.join(' + ')} आपके कार्ट में डाल दिया। 🛒`, `Ho gaya! ✅ ${lines.join(' + ')} cart me daal diya. 🛒`);
+    if(cmd.misses && cmd.misses.length) reply += zt(`\n("${cmd.misses.join(', ')}" isn't on the menu 🙏)`, `\n("${cmd.misses.join(', ')}" मेन्यू में नहीं है 🙏)`, `\n("${cmd.misses.join(', ')}" menu me nahi hai 🙏)`);
     const up = zaraUpsell(lastItem);
-    if(up) reply += `\n\nIske saath ${up.name} (₹${up.price}) loge? Bolo "add ${up.name}" 😋`;
-    renderZaraChips(['🛒 Open cart', up?`add ${up.name}`:'🥟 Popular dishes']);
+    if(up) reply += zt(`\n\nWould you like ${up.name} (₹${up.price}) with it? Say "add ${up.name}" 😋`, `\n\nइसके साथ ${up.name} (₹${up.price}) लेंगे? बोलिए "${up.name} ऐड करो" 😋`, `\n\nIske saath ${up.name} (₹${up.price}) loge? Bolo "add ${up.name}" 😋`);
+    renderZaraChips([zt('🛒 Open cart','🛒 कार्ट खोलें','🛒 Open cart'), up?`add ${up.name}`:zt('🥟 Popular dishes','🥟 लोकप्रिय डिश','🥟 Popular dishes')]);
     addZaraMsg('bot', reply);
     return;
   }
@@ -4519,13 +4585,13 @@ async function sendZara(){
 
   // 4) Delivery rate / rider helper
   if(/rider|porter|borzo|rate kya|kitne ki delivery|delivery rate|khud deliver/.test(textH.toLowerCase())){
-    renderZaraChips(['🛵 Book a rider','🥟 Popular dishes']);
-    addZaraMsg('bot', `Once your order is confirmed, you can book your own rider — compare rates on Porter/Borzo and pay the rider there. 🛵 Tap "Book a rider" below.`);
+    renderZaraChips([zt('🛵 Book a rider','🛵 राइडर बुक करें','🛵 Book a rider'), zt('🥟 Popular dishes','🥟 लोकप्रिय डिश','🥟 Popular dishes')]);
+    addZaraMsg('bot', zt(`Once your order is confirmed, you can book your own rider — compare rates on Porter/Borzo and pay the rider there. 🛵 Tap "Book a rider" below.`, `ऑर्डर कन्फ़र्म होने के बाद आप खुद राइडर बुक कर सकते हैं — Porter/Borzo पर रेट देखें और पेमेंट राइडर को वहीं करें। 🛵 नीचे "राइडर बुक करें" दबाएँ।`, `Order confirm hone ke baad aap khud rider book kar sakte ho — Porter/Borzo par rate dekho aur rider ko wahin pay karo. 🛵 Neeche "Book a rider" dabao.`));
     return;
   }
 
   // 5) AI / built-in jawab
-  const typing = addZaraMsg('bot typing', 'Zara is typing…');
+  const typing = addZaraMsg('bot typing', zt('Zara is typing…','ज़ारा लिख रही है…','Zara likh rahi hai…'));
   let reply;
   if(ZARA_API_URL){ reply = await zaraAI(text, textH); }
   else { reply = zaraLocal(textH); }
@@ -4542,38 +4608,38 @@ function zaraLocal(qRaw){
       const its = MENU.filter(m=>m.stock && m.cat===c).slice(0,3).map(m=>`${m.name} ₹${m.price}`).join(', ');
       return `• ${c}: ${its}`;
     }).join('\n');
-    renderZaraChips(['🥟 Popular dishes','add veg momos','🛒 Open cart']);
-    return `Here's what we have 😋:\n${lines}\n\nSay "add <name>" for anything you like and I'll put it in your cart! 🛒`;
+    renderZaraChips([zt('🥟 Popular dishes','🥟 लोकप्रिय डिश','🥟 Popular dishes'),'add veg momos',zt('🛒 Open cart','🛒 कार्ट खोलें','🛒 Open cart')]);
+    return zt(`Here's what we have 😋:\n${lines}\n\nSay "add <name>" for anything you like and I'll put it in your cart! 🛒`, `हमारे पास ये है 😋:\n${lines}\n\nजो पसंद हो, बोलिए "<नाम> ऐड करो" — मैं कार्ट में डाल दूँगी! 🛒`, `Hamare paas ye hai 😋:\n${lines}\n\nJo pasand ho, bolo "<naam> add karo" — main cart me daal dungi! 🛒`);
   }
   if(/veg|non.?veg|egg|meat|chicken|ande/.test(q))
-    return `All our food is 100% pure veg 🌿 — no non-veg at all. Order with peace of mind!`;
+    return zt(`All our food is 100% pure veg 🌿 — no non-veg at all. Order with peace of mind!`, `हमारा सारा खाना 100% शुद्ध शाकाहारी है 🌿 — कोई नॉन-वेज नहीं। बेफ़िक्र ऑर्डर करें!`, `Hamara saara khana 100% pure veg hai 🌿 — koi non-veg nahi. Befikr order karo!`);
   if(/deliver|charge|free|shipping/.test(q)){
-    renderZaraChips(['🛵 Book a rider']);
-    return `Free delivery hasn't started yet 🙏 — once your order is confirmed, you can book your own rider (Porter/Borzo) and pay the rider there. Tap "Book a rider" below! 🛵 Pickup is also available.`;
+    renderZaraChips([zt('🛵 Book a rider','🛵 राइडर बुक करें','🛵 Book a rider')]);
+    return zt(`Free delivery hasn't started yet 🙏 — once your order is confirmed, you can book your own rider (Porter/Borzo) and pay the rider there. Tap "Book a rider" below! 🛵 Pickup is also available.`, `फ़्री डिलीवरी अभी शुरू नहीं हुई 🙏 — ऑर्डर कन्फ़र्म होने के बाद आप खुद राइडर (Porter/Borzo) बुक करके उसे वहीं पेमेंट कर सकते हैं। नीचे "राइडर बुक करें" दबाएँ! 🛵 पिकअप भी उपलब्ध है।`, `Free delivery abhi shuru nahi hui 🙏 — order confirm hone ke baad khud rider (Porter/Borzo) book karke use wahin pay kar sakte ho. Neeche "Book a rider" dabao! 🛵 Pickup bhi available hai.`);
   }
   if(/time|timing|open|band|khula|hours|kab/.test(q))
-    return `We're open every day — you can order right now! Both Delivery and Pickup are available. 🕒`;
+    return zt(`We're open every day — you can order right now! Both Delivery and Pickup are available. 🕒`, `हम रोज़ खुले रहते हैं — आप अभी ऑर्डर कर सकते हैं! डिलीवरी और पिकअप दोनों उपलब्ध हैं। 🕒`, `Hum roz khule rehte hain — abhi order kar sakte ho! Delivery aur Pickup dono available hain. 🕒`);
   if(/pay|payment|upi|cash|paisa/.test(q))
-    return `You can pay online by UPI, card or wallet at checkout. 💳`;
+    return zt(`You can pay online by UPI, card or wallet at checkout. 💳`, `चेकआउट पर UPI, कार्ड या वॉलेट से ऑनलाइन पेमेंट कर सकते हैं। 💳`, `Checkout par UPI, card ya wallet se online pay kar sakte ho. 💳`);
   if(/popular|best|recommend|suggest|tasty|acha|famous/.test(q)){
     const picks = MENU.filter(m=>m.stock).slice(0,4).map(m=>`${m.name} (₹${m.price})`).join(', ');
     renderZaraChips(['🥟 Momos','🍕 Pizza','🍔 Burgers','🍜 Chowmein']);
-    return `Our most-ordered dishes: ${picks}. Say "add <dish name>" and I'll put it in your cart! 😋`;
+    return zt(`Our most-ordered dishes: ${picks}. Say "add <dish name>" and I'll put it in your cart! 😋`, `सबसे ज़्यादा ऑर्डर होने वाली डिश: ${picks}। बोलिए "<डिश का नाम> ऐड करो" — मैं कार्ट में डाल दूँगी! 😋`, `Sabse zyada order hone wali dishes: ${picks}. Bolo "<dish naam> add karo" — main cart me daal dungi! 😋`);
   }
   const hit = MENU.filter(m=>m.stock && (m.name.toLowerCase().includes(q) || m.cat.toLowerCase().includes(q)));
   if(hit.length){
     const list = hit.slice(0,5).map(m=>`• ${m.name} — ₹${m.price}`).join('\n');
-    return `Here's what I found for "${qRaw}":\n${list}\n\nSay "add <name>" and I'll put it in your cart! 🛒`;
+    return zt(`Here's what I found for "${qRaw}":\n${list}\n\nSay "add <name>" and I'll put it in your cart! 🛒`, `"${qRaw}" के लिए ये मिला:\n${list}\n\nबोलिए "<नाम> ऐड करो" — मैं कार्ट में डाल दूँगी! 🛒`, `"${qRaw}" ke liye ye mila:\n${list}\n\nBolo "<naam> add karo" — main cart me daal dungi! 🛒`);
   }
-  renderZaraChips(['🥟 Popular dishes','🌿 Is everything veg?','🛵 Delivery charge','🕒 Timings']);
-  return `I can suggest dishes, add them to your cart (say "add 2 veg momos"), check your order status, and help with party orders. What would you like? 🙂`;
+  renderZaraChips(zt(['🥟 Popular dishes','🌿 Is everything veg?','🛵 Delivery charge','🕒 Timings'],['🥟 लोकप्रिय डिश','🌿 क्या सब वेज है?','🛵 डिलीवरी चार्ज','🕒 टाइमिंग'],['🥟 Popular dishes','🌿 Sab veg hai?','🛵 Delivery charge','🕒 Timings']));
+  return zt(`I can suggest dishes, add them to your cart (say "add 2 veg momos"), check your order status, and help with party orders. What would you like? 🙂`, `मैं डिश सुझा सकती हूँ, कार्ट में डाल सकती हूँ (बोलिए "2 वेज मोमोज ऐड करो"), ऑर्डर स्टेटस बता सकती हूँ और पार्टी ऑर्डर में मदद कर सकती हूँ। बताइए क्या चाहिए? 🙂`, `Main dishes suggest kar sakti hoon, cart me daal sakti hoon (bolo "2 veg momos add karo"), order status bata sakti hoon aur party order me help kar sakti hoon. Batao kya chahiye? 🙂`);
 }
 
 // AI ke reply me hidden action tags execute karo: [[ADD: 2 x Veg Momos | half]], [[STATUS]], [[PARTY]]
 function zaraExecuteActions(reply, userText){
   if(!CONFIG.shopOpen){
     reply = reply.replace(/\[\[\s*ADD\s*:[^\]]*\]\]/gi,'').replace(/\n{3,}/g,'\n\n').trim();
-    return (reply ? reply + '\n\n' : '') + 'By the way, we\'re closed right now 🙏 — I\'ll take your order as soon as we open!';
+    return (reply ? reply + '\n\n' : '') + zt('By the way, we\'re closed right now 🙏 — I\'ll take your order as soon as we open!','वैसे अभी दुकान बंद है 🙏 — खुलते ही आपका ऑर्डर ले लूँगी!','Waise abhi shop band hai 🙏 — khulte hi aapka order le lungi!');
   }
   let added = [];
   let lastItem = null;
@@ -4595,9 +4661,9 @@ function zaraExecuteActions(reply, userText){
   reply = reply.replace(/\[\[\s*PARTY\s*\]\]/gi, ()=>{ hasParty = true; return ''; });
   reply = reply.replace(/\n{3,}/g,'\n\n').trim();
   if(added.length){
-    reply += (reply?'\n\n':'') + `✅ Added ${added.join(' + ')} to your cart! 🛒`;
+    reply += (reply?'\n\n':'') + zt(`✅ Added ${added.join(' + ')} to your cart! 🛒`, `✅ ${added.join(' + ')} कार्ट में डाल दिया! 🛒`, `✅ ${added.join(' + ')} cart me daal diya! 🛒`);
     const up = lastItem ? zaraUpsell(lastItem) : null;
-    renderZaraChips(['🛒 Open cart', up?`add ${up.name}`:'🥟 Popular dishes']);
+    renderZaraChips([zt('🛒 Open cart','🛒 कार्ट खोलें','🛒 Open cart'), up?`add ${up.name}`:zt('🥟 Popular dishes','🥟 लोकप्रिय डिश','🥟 Popular dishes')]);
   }
   if(hasStatus){
     const st = zaraOrderStatus('order status ' + (userText||''));
@@ -4605,9 +4671,9 @@ function zaraExecuteActions(reply, userText){
   }
   if(hasParty && !zaraLead){
     zaraLead = {step:'name'};
-    reply += (reply?'\n\n':'') + `For a party or bulk order, please tell me your name, then your number, and we'll get in touch. 🎉`;
+    reply += (reply?'\n\n':'') + zt(`For a party or bulk order, please tell me your name, then your number, and we'll get in touch. 🎉`, `पार्टी या बल्क ऑर्डर के लिए पहले अपना नाम, फिर नंबर बताइए — हम संपर्क करेंगे। 🎉`, `Party ya bulk order ke liye pehle naam, phir number batao — hum contact karenge. 🎉`);
   }
-  return reply || 'Done! ✅';
+  return reply || zt('Done! ✅','हो गया! ✅','Ho gaya! ✅');
 }
 
 // Full AI via your Cloudflare Worker (used only when ZARA_API_URL is set)
