@@ -2514,16 +2514,23 @@ const RIDER_APPS = {
 };
 function openRiderApp(which){
   const a = RIDER_APPS[which]; if(!a) return;
-  const addr = PAGE_INFO.pickup;
+  // Rapido ka search chhota pata hi pehchanta hai; Porter poora pata le leta hai
+  const addr = which==='rapido' ? 'Masjid Road, Dayal Nagar, Faridabad' : PAGE_INFO.pickup;
   try{ navigator.clipboard && navigator.clipboard.writeText(addr).catch(()=>{}); }catch(e){}
   const L = (typeof currentLang!=='undefined') ? currentLang : 'en';
-  const msg = L==='hi' ? '📋 स्टोर का पता कॉपी हो गया — ऐप में पिकअप लोकेशन पर पेस्ट करें। ड्रॉप लोकेशन आपकी मौजूदा लोकेशन होगी।'
-    : L==='hg' ? '📋 Store ka pata copy ho gaya — app me Pickup location par paste karein. Drop aapki current location hogi.'
-    : '📋 Store address copied — paste it as the pickup location in the app. Your current location will be the drop point.';
+  const R = which==='rapido';
+  const msg = L==='hi'
+      ? (R ? '📋 कॉपी हुआ: "Masjid Road, Dayal Nagar, Faridabad" — Rapido में Pickup पर पेस्ट करें, सुझाव चुनें, फिर पिन को Bake \'N\' Wok (Shop No. 6, Gupta General Store के पास) पर सेट करें।'
+           : '📋 स्टोर का पता कॉपी हो गया — ऐप में पिकअप लोकेशन पर पेस्ट करें। ड्रॉप आपकी मौजूदा लोकेशन होगी।')
+    : L==='hg'
+      ? (R ? '📋 Copy hua: "Masjid Road, Dayal Nagar, Faridabad" — Rapido me Pickup par paste karein, suggestion chunein, phir pin ko Bake \'N\' Wok (Shop No. 6, Gupta General Store ke paas) par set karein.'
+           : '📋 Store ka pata copy ho gaya — app me Pickup location par paste karein. Drop aapki current location hogi.')
+      : (R ? '📋 Copied: "Masjid Road, Dayal Nagar, Faridabad" — paste it as the Pickup in Rapido, pick the suggestion, then move the pin to Bake \'N\' Wok (Shop No. 6, near Gupta General Store).'
+           : '📋 Store address copied — paste it as the pickup location in the app. Your current location will be the drop point.');
   const tt = document.createElement('div');
   tt.className = 'notranslate'; tt.textContent = msg;
   tt.style.cssText = 'position:fixed;left:50%;bottom:24px;transform:translateX(-50%);max-width:90%;background:#2b1a33;color:#fff;padding:12px 16px;border-radius:12px;font-size:14px;z-index:99999;box-shadow:0 6px 20px rgba(0,0,0,.3);text-align:center';
-  document.body.appendChild(tt); setTimeout(()=>tt.remove(), 4000);
+  document.body.appendChild(tt); setTimeout(()=>tt.remove(), R ? 7000 : 4000);
   const ua = navigator.userAgent || '';
   setTimeout(()=>{
     if(/Android/i.test(ua)){
@@ -2534,7 +2541,7 @@ function openRiderApp(which){
     } else {
       window.open(a.web, '_blank');
     }
-  }, 900);
+  }, R ? 2500 : 900);
 }
 function updateDeliveryStatusUI(){
   const banner = document.getElementById('deliveryStatusBanner');
