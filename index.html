@@ -1439,7 +1439,7 @@
           <input id="cpnMin" type="number" placeholder="Min order ₹" style="flex:1;min-width:90px;">
         </div>
         <button class="btn" style="margin-top:8px;" onclick="addCoupon()">+ Add Coupon</button>
-        <p style="font-size:11px;color:#8a7a63;margin-top:6px;">Yahan se add kiya coupon isi session me chalega. Permanent ke liye code me COUPONS section me jodein.</p>
+        <p style="font-size:11px;color:#8a7a63;margin-top:6px;">Coupon Google Sheet me save hota hai — sab customers par turant lagu, har phone par same.</p>
       </div>
       <div class="admin-card">
         <label>Delivery Boys 🧑‍🍳</label>
@@ -1486,7 +1486,7 @@ const CONFIG = {
   tokenEnabled: true,      // daily token numbers (#1, #2...) — Admin > Settings se on/off
   // 🔐 Password ab CODE ME NAHI — Google Sheet ke "Config" tab me hai.
   // Pehla password: 20260707 (Sheet me khud ban jaata hai). 5 galat = block → email OTP se unlock.
-  adminSecret: "bnw-x7k9-2026-a4f1",   // admin actions ke saath jaata hai; Apps Script check karta hai
+  // 🔐 Admin secret ab code me NAHI. Login par server ek session token deta hai (sirf admin ke phone me).
   restaurantName: "Bake 'N' Wok",
   // Top-of-page video banner (like Zomato/Swiggy show on their home screen).
   // Paste a DIRECT link to your own food/product video here (an .mp4 link works best).
@@ -1531,7 +1531,7 @@ const DELIVERY_PARTNERS = {
 // Yahan sirf starting demo data hai; asli list Admin panel se manage karo.
 let DELIVERY_BOYS = [];
 try{ DELIVERY_BOYS = JSON.parse(localStorage.getItem('bnw_boys')||'[]'); }catch(e){}
-function saveBoys(){ try{ localStorage.setItem('bnw_boys', JSON.stringify(DELIVERY_BOYS)); }catch(e){} }
+function saveBoys(){ try{ localStorage.setItem('bnw_boys', JSON.stringify(DELIVERY_BOYS)); }catch(e){} if(window._adminOpen) saveSharedJson('boys', DELIVERY_BOYS); }
 
 /* Admin: delivery-boy list render / add / toggle / remove */
 function renderDeliveryBoyAdmin(){
@@ -1539,7 +1539,7 @@ function renderDeliveryBoyAdmin(){
   if(!el) return;
   el.innerHTML = DELIVERY_BOYS.length ? DELIVERY_BOYS.map((b,i)=>`
     <div class="cpn-row">
-      <span><b>${b.name}</b> — ${b.whatsapp}</span>
+      <span><b>${esc(b.name)}</b> — ${esc(b.whatsapp)}</span>
       <button class="cpn-toggle ${b.active?'on':''}" onclick="toggleDeliveryBoy(${i})">${b.active?'ON':'OFF'}</button>
       <button class="small-btn" style="background:var(--nonveg);color:#fff;padding:6px 10px;" onclick="removeDeliveryBoy(${i})">✕</button>
     </div>`).join('') : '<p style="font-size:12px;color:#8a7a63;">Koi delivery boy add nahi hua abhi tak.</p>';
@@ -1569,7 +1569,7 @@ function renderLocalBoyButtons(){
   const active = DELIVERY_BOYS.filter(b=>b.active);
   el.innerHTML = active.length ? active.map(b=>{
     const msg = encodeURIComponent(`Hello ${b.name}, I'm contacting you about a delivery from Bake 'N' Wok.\nPickup: ${PAGE_INFO.pickup}`);
-    return `<a class="partner-btn localboy" href="https://wa.me/${b.whatsapp}?text=${msg}" target="_blank">🧑‍🍳 ${b.name} (WhatsApp)</a>`;
+    return `<a class="partner-btn localboy" href="https://wa.me/${String(b.whatsapp).replace(/\D/g,'')}?text=${msg}" target="_blank">🧑‍🍳 ${esc(b.name)} (WhatsApp)</a>`;
   }).join('') : '';
 }
 
@@ -1702,7 +1702,7 @@ async function cleanDuplicates(){
     } else seen[k] = i;
   }
   // Sheet me bhi same naam ki extra rows saaf karwao
-  try{ await jsonpGet({action:'dedupeProducts', secret: CONFIG.adminSecret}); }catch(e){}
+  try{ await jsonpGet({action:'dedupeProducts', token: adminToken()}); }catch(e){}
   renderMenu(); renderAdminMenu(); epPopulate(); renderQuickStock(); renderCategoryGrid(); renderCatNav();
   alert(removed.length
     ? '🧹 ' + removed.length + ' duplicate hataye:\n' + removed.join(', ') + '\n\nSheet bhi saaf kar di. Ab har product ek hi baar dikhega.'
@@ -1742,12 +1742,12 @@ async function runSystemCheck(){
   // Test 2: save karke wapas padho
   try{
     const testVal = st.shopOpen === 'FALSE' ? 'FALSE' : 'TRUE';   // wahi value wapas likho (kuch badlega nahi)
-    const r = await jsonpGet({action:'setSetting', secret: CONFIG.adminSecret, key:'shopOpen', value:testVal});
+    const r = await jsonpGet({action:'setSetting', token: adminToken(), key:'shopOpen', value:testVal});
     if(r && r.ok){
       html += line(true, 'Settings save bhi ho raha hai — <b>sab system sahi hai!</b>');
       html += line(null, 'Ab Shop Closed karke dekho — Sheet ke Config tab me shopOpen = FALSE ho jayega aur button OFF hi rahega.');
     } else {
-      html += line(false, 'Save FAIL: ' + JSON.stringify(r) + '<br>Secret mismatch ho sakta hai — Apps Script me ADMIN_SECRET check karein: <b>bnw-x7k9-2026-a4f1</b>');
+      html += line(false, 'Save FAIL: ' + JSON.stringify(r) + '<br>Session ya Apps Script ka purana version ho sakta hai — dobara login karein, ya naya Apps Script deploy karein.');
     }
   }catch(e){
     html += line(false, 'Save request hi fail: ' + e.message);
@@ -1831,7 +1831,7 @@ async function renderRidersDuty(){
   const el = document.getElementById('ridersDutyList');
   if(!el) return;
   try{
-    const r = await jsonpGet({get:'ridersDuty', secret: CONFIG.adminSecret});
+    const r = await jsonpGet({get:'ridersDuty', token: adminToken()});
     if(!r || !r.ok || !r.riders || !r.riders.length){ el.innerHTML='<p style="color:#8a7a63;font-size:12px;">Abhi koi rider registered nahi.</p>'; return; }
     const onCount = r.riders.filter(x=>x.duty!=='OFF').length;
     el.innerHTML = (onCount===0 ? '<p style="color:#c0392b;font-weight:800;">⚠️ Aaj koi rider ON nahi — Delivery OFF kar dein!</p>' : '') +
@@ -1913,7 +1913,7 @@ async function showReport(days){
   const box = document.getElementById('dailyReportBox');
   box.innerHTML = '<p style="color:#8a7a63;">⏳ Hisaab nikala ja raha hai…</p>';
   try{
-    const r = await jsonpGet({get:'report', days: days, secret: CONFIG.adminSecret});
+    const r = await jsonpGet({get:'report', days: days, token: adminToken()});
     if(!r || !r.ok){ box.innerHTML = '<p style="color:#c0392b;">Report nahi mili — Apps Script update karein.</p>'; return; }
     const label = days===1 ? 'Aaj' : 'Pichle ' + days + ' din';
     box.innerHTML = `
@@ -1931,7 +1931,7 @@ async function showReport(days){
 /* ---------- #7: Bestseller auto-badge — 30 din ka sabse bikne wala item ---------- */
 async function applyBestsellers(){
   try{
-    const r = await jsonpGet({get:'report', days: 30, secret: CONFIG.adminSecret});
+    const r = await jsonpGet({get:'bestsellers'});   // public: sirf dish ke naam + ginti
     if(!r || !r.ok || !r.top || !r.top.length) return;
     const norm = t => String(t||'').toLowerCase().replace(/[^a-z0-9]/g,'');
     // Top 2 items par 🔥 Bestseller badge (jinpar pehle se koi badge nahi)
@@ -2006,13 +2006,13 @@ async function _confirmSetting(key, wantValue){
     // 1) Save bhejo
     let saveResp = null;
     try{
-      saveResp = await jsonpGet({action:'setSetting', secret: CONFIG.adminSecret, key:key, value:wantValue});
+      saveResp = await jsonpGet({action:'setSetting', token: adminToken(), key:key, value:wantValue});
     }catch(e){ saveResp = null; }
     // 2) Thoda ruk kar Sheet se WAPAS padho
     await new Promise(r=>setTimeout(r, 1500));
     let got = null;
     try{
-      const d = await jsonpGet({});
+      const d = await jsonpGet({get:'settings'});
       got = d && d.settings ? d.settings[key] : null;
     }catch(e){ got = null; }
     // 3) Match hua? — pakka save ho gaya
@@ -2031,6 +2031,34 @@ async function _confirmSetting(key, wantValue){
 }
 function _justChanged(key){ return _recentlyChanged[key] && (Date.now() - _recentlyChanged[key] < 60000); }
 let _backendOldWarned = false;
+/* Welcome popup, coupons, delivery boys — Sheet se (har phone par same) */
+function applySharedConfig(st){
+  try{
+    if(st.welcome && typeof st.welcome === 'object'){
+      CONFIG.welcomeOn = st.welcome.on !== false;
+      if(st.welcome.title) CONFIG.welcomeTitle = String(st.welcome.title);
+      if(st.welcome.text) CONFIG.welcomeText = String(st.welcome.text);
+      if(st.welcome.coupon != null) CONFIG.welcomeCoupon = String(st.welcome.coupon);
+    }
+    if(st.coupons && typeof st.coupons === 'object'){
+      Object.keys(st.coupons).forEach(k=>{
+        const c = st.coupons[k], code = String(k).toUpperCase().replace(/[^A-Z0-9]/g,'');
+        if(code && c && (c.type==='flat' || c.type==='percent') && Number(c.value) > 0)
+          COUPONS[code] = { type:c.type, value:Number(c.value), minOrder:Number(c.minOrder)||0, active:c.active !== false };
+      });
+    }
+    if(Array.isArray(st.boys) && !window._adminOpen){
+      DELIVERY_BOYS = st.boys.map(b=>({ name:String(b.name||''), whatsapp:String(b.whatsapp||'').replace(/\D/g,''), active:true }));
+      try{ renderLocalBoyButtons(); }catch(e){}
+    }
+  }catch(e){}
+}
+async function saveSharedJson(key, value){
+  try{
+    const r = await authCall({action:'setJson', key, value: JSON.stringify(value)});
+    return !!(r && r.ok);
+  }catch(e){ return false; }
+}
 function applyServerSettings(st){
   if(!st) return;
   if(st.ver !== '2'){
@@ -2041,6 +2069,7 @@ function applyServerSettings(st){
     }
     return;
   }
+  applySharedConfig(st);
   let changed = false;
   const B = x => String(x).toUpperCase();   // "true"/"TRUE"/true — sab ek jaisa
   if(st.shopOpen !== undefined && !_justChanged('shopOpen')){ const v = B(st.shopOpen) !== 'FALSE'; if(CONFIG.shopOpen !== v){ changed = true; } setShopOpen(v, true); }
@@ -2161,7 +2190,7 @@ function sheetPost(payload){
     const body = Object.assign({}, payload);
     // Admin actions ke saath secret bhejo (Apps Script isko check karta hai)
     if(['addProduct','updateStatus','deleteProduct','setSetting','updateProduct'].indexOf(body.action) !== -1){
-      body.secret = CONFIG.adminSecret;
+      body.token = adminToken();
     }
     return fetch(SHEET_URL, {
       method:'POST',
@@ -2318,10 +2347,11 @@ const statusOverride = {};   // aapka dabaya status yaad rahe (Sheet se wapas na
 let ordersLoadedOnce = false;
 async function loadOrdersFromSheet(){
   if(!SHEET_URL) return;
+  // 🔒 Poori order list (naam/phone/address) sirf login kiye admin ko
+  if(!adminToken()) return loadMyOrders();
   try{
-    // Har poll par shop/delivery settings bhi taaza karo (dusre device se badla ho to yahan bhi lage)
-    try{ const sd = await jsonpGet({}); if(sd && sd.settings) applyServerSettings(sd.settings); }catch(e){}
-    const data = await jsonpGet({get:'orders'});
+    const data = await jsonpGet({get:'orders', token: adminToken()});
+    if(data && data.error === 'unauthorized'){ setAdminToken(''); return loadMyOrders(); }
     if(data && data.ok && Array.isArray(data.orders)){
       // Local (abhi-abhi place hue, Sheet me pahunchne baaki) orders ko upar rakho
       const local = ORDERS.filter(o => !data.orders.some(s => String(s.orderId)===String(o.orderId)));
@@ -2332,6 +2362,7 @@ async function loadOrdersFromSheet(){
         mode: o.mode, time: o.time,
         ts: o.ts || Date.parse(o.time) || 0,
         token: o.token || '',
+        riderKey: o.riderKey || '',
         status: statusOverride[o.orderId] || String(o.status || 'Pending Confirmation').trim()
       }))];
       if(!ordersLoadedOnce){ lastOrderCount = ORDERS.length; ordersLoadedOnce = true; computeBestseller(); }
@@ -2340,17 +2371,48 @@ async function loadOrdersFromSheet(){
     }
   }catch(e){ /* net issue — agle poll me try hoga */ }
 }
-setInterval(loadOrdersFromSheet, 30000); // har 30 second me naye orders check
+setInterval(()=>{ if(!document.hidden && adminToken()) loadOrdersFromSheet(); }, 30000); // sirf admin: har 30 sec naye orders
+
+/* Customer: sirf APNE orders (phone se) — kisi aur ka naam/address kabhi nahi aata */
+async function loadMyOrders(){
+  const ph = savedPhone();
+  if(!SHEET_URL || !ph) return;
+  try{
+    const data = await jsonpGet({get:'myOrders', phone: String(ph).replace(/\D/g,'').slice(-10)});
+    if(data && data.ok && Array.isArray(data.orders)){
+      const local = ORDERS.filter(o => !data.orders.some(s => String(s.orderId)===String(o.orderId)));
+      ORDERS = [...local, ...data.orders.map(o=>({
+        orderId: o.orderId, name: '', phone: ph, addr: '', items: o.items, total: o.total,
+        subtotal: o.total, delivery: 0, mode: o.mode, time: o.time,
+        ts: o.ts || Date.parse(o.time) || 0, token: o.token || '',
+        status: String(o.status || 'Pending Confirmation').trim()
+      }))];
+      renderTrackBanner();
+    }
+  }catch(e){}
+}
+// Customer ka chalu order ho tabhi, aur screen khuli ho tabhi — 1 minute me ek baar
+setInterval(()=>{
+  if(document.hidden || adminToken()) return;
+  if(ORDERS.some(o => o.status !== 'Delivered')) loadMyOrders();
+}, 60000);
 /* Shop/Delivery/Token/Happy settings ko har 8 sec me sync karo —
    do screen ek saath khuli hon to ek me badla doosri me turant dikhe */
-async function syncSettingsFast(){
-  if(!SHEET_URL) return;
-  try{ const sd = await jsonpGet({}); if(sd && sd.settings) applyServerSettings(sd.settings); }catch(e){}
+let _lastSettingsSync = Date.now();   // app khulte hi settings menu ke saath aa jaati hain
+async function syncSettingsFast(force){
+  if(!SHEET_URL || document.hidden) return;
+  // Admin: har 10 sec (do screen sync). Customer: 2 minute me ek baar — Sheet par bheed nahi
+  const gap = window._adminOpen ? 10000 : 120000;
+  if(!force && Date.now() - _lastSettingsSync < gap) return;
+  _lastSettingsSync = Date.now();
+  try{ const sd = await jsonpGet({get:'settings'}); if(sd && sd.settings) applyServerSettings(sd.settings); }catch(e){}
 }
-setInterval(syncSettingsFast, 8000);
+setInterval(syncSettingsFast, 10000);
 // Screen wapas kholte hi (tab switch/phone unlock) turant sync
-document.addEventListener('visibilitychange', ()=>{ if(!document.hidden) syncSettingsFast(); });
+document.addEventListener('visibilitychange', ()=>{ if(!document.hidden) syncSettingsFast(true); });
 let orderCounter = 1001;   // (purana, ab use nahi hota)
+function adminToken(){ try{ return localStorage.getItem('bnw_admin_token') || ''; }catch(e){ return ''; } }
+function setAdminToken(t){ try{ if(t) localStorage.setItem('bnw_admin_token', t); else localStorage.removeItem('bnw_admin_token'); localStorage.removeItem('bnw_admin_session'); }catch(e){} }
 let _lastOrderId = 0;
 function newOrderId(){
   let id = Number(String(Date.now()).slice(-8));
@@ -2457,11 +2519,15 @@ async function setTokenEnabled(on, skipSave){
   }
   refreshAdminOrders();
 }
+let _serverTodayCount = 0;
+async function prefetchTodayCount(){
+  try{ const r = await jsonpGet({get:'todayCount'}); if(r && r.ok) _serverTodayCount = Number(r.count) || 0; }catch(e){}
+}
 function nextToken(){
-  // Aaj ke orders gino (Sheet se aaye + local) — agla token
+  // Aaj ke orders: server ki ginti (checkout khulte hi aati hai) ya is phone ke — jo bada ho
   const t0 = new Date(); t0.setHours(0,0,0,0);
-  const todayCount = ORDERS.filter(o => (o.ts||0) >= t0.getTime()).length;
-  return todayCount + 1;
+  const localToday = ORDERS.filter(o => (o.ts||0) >= t0.getTime()).length;
+  return Math.max(_serverTodayCount, localToday) + 1;
 }
 
 async function setDeliveryAvailability(available, skipSave){
@@ -2758,7 +2824,7 @@ function renderCouponAdmin(){
   }).join('') : '<p style="font-size:12px;color:#8a7a63;">Koi coupon nahi.</p>';
 }
 function toggleCoupon(code){
-  if(COUPONS[code]){ COUPONS[code].active = !COUPONS[code].active; renderCouponAdmin(); }
+  if(COUPONS[code]){ COUPONS[code].active = !COUPONS[code].active; renderCouponAdmin(); saveSharedJson('coupons', COUPONS); }
 }
 function addCoupon(){
   const code = (document.getElementById('cpnCode').value||'').trim().toUpperCase();
@@ -2769,7 +2835,7 @@ function addCoupon(){
   COUPONS[code] = { type, value, minOrder, active:true };
   document.getElementById('cpnCode').value=''; document.getElementById('cpnValue').value=''; document.getElementById('cpnMin').value='';
   renderCouponAdmin();
-  alert(`Coupon ${code} ban gaya! ✅`);
+  saveSharedJson('coupons', COUPONS).then(ok=> alert(ok ? `Coupon ${code} ban gaya aur Sheet me save! ✅ Sab customers par lagu.` : `Coupon ${code} bana, par Sheet me save NAHI hua ⚠️`));
 }
 
 /* Ek hi jagah bill ka hisaab — cart, checkout, order sab isi se */
@@ -2933,6 +2999,7 @@ function closeSheet(id){
 
 function openCheckout(){
   closeSheet('cartOverlay');
+  if(CONFIG.tokenEnabled) prefetchTodayCount();
   const total = renderBill('billBox2');
   document.getElementById('payAmt').textContent = total;
   // Pichhli baar ke details apne aap bhar do (repeat customer ke liye)
@@ -3133,9 +3200,10 @@ function renderTrackSteps(stepIndex){
 async function pollTrackStatus(){
   if(!SHEET_URL || !trackOrderId) return;
   try{
-    const data = await jsonpGet({get:'orders'});
-    if(data && data.ok && Array.isArray(data.orders)){
-      const o = data.orders.find(x=>String(x.orderId)===String(trackOrderId));
+    if(document.hidden) return;
+    const data = await jsonpGet({get:'track', orderId: trackOrderId});
+    if(data && data.ok && data.order){
+      const o = data.order;
       if(o){
         const idx = Math.max(0, TRACK_STATUSES.indexOf(o.status));
         renderTrackSteps(idx);
@@ -3199,12 +3267,12 @@ function renderTrackBanner(){
   const confirmed = /verified|confirm(?!ation)|prepar|kitchen|ready|out for|delivery|pickup ready|accepted/i.test(stl) && !/pending confirmation/i.test(stl);
   if(!confirmed){
     el.innerHTML = `<button class="track-banner" onclick="trackOrderById('${o.orderId}')" style="opacity:.85;">
-      🕐 Aapka order <b>#${o.orderId}</b> mil gaya — <b>payment confirm hote hi</b> taiyaari shuru. Track karein →
+      🕐 We've received your order <b>#${o.orderId}</b> — we'll start preparing it <b>once payment is confirmed</b>. Track →
     </button>`;
     return;
   }
   el.innerHTML = `<button class="track-banner" onclick="trackOrderById('${o.orderId}')">
-      📍 Aapka order <b>#${o.orderId}</b>${CONFIG.tokenEnabled && o.token ? ` (🎫 #${o.token})`:''} — <b>${esc(o.status)}</b> · Track karein →
+      📍 Your order <b>#${o.orderId}</b>${CONFIG.tokenEnabled && o.token ? ` (🎫 #${o.token})`:''} — <b>${esc(o.status)}</b> · Track →
     </button>`;
 }
 setInterval(renderTrackBanner, 30000);
@@ -3321,7 +3389,13 @@ async function sha256(text){
   return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
 }
 async function authCall(params){
-  return await jsonpGet(Object.assign({secret: CONFIG.adminSecret}, params));
+  const r = await jsonpGet(Object.assign({token: adminToken()}, params));
+  // Session khatam (dusre phone se password badla / 30 din) — saaf logout
+  if(r && r.error === 'unauthorized' && window._adminOpen){
+    alert('🔒 Admin session khatam ho gaya. Dobara login karein.');
+    logoutAdmin();
+  }
+  return r;
 }
 function adminMsg(t,c){ const el=document.getElementById('adminMsg'); if(el){ el.textContent=t; el.style.color=c||'#8a7a63'; } }
 
@@ -3339,10 +3413,12 @@ async function tryAdminLogin(){
   try{
     const hash = await sha256(pass);
     const r = await authCall({action:'login', hash});
-    if(r.ok){
-      try{ localStorage.setItem('bnw_admin_session', hash); }catch(e){}
+    if(r.ok && r.token){
+      setAdminToken(r.token);
       document.getElementById('adminPass').value=''; adminMsg('');
       openAdminPanel();
+    } else if(r.ok){
+      adminMsg('⚠️ Naya Apps Script deploy nahi hua — pehle deploy karein.', '#c0392b');
     } else if(r.blocked){
       adminMsg('🔒 Account BLOCK. Neeche "Unlock karein" se OTP le kar kholein.', '#c0392b');
       showOtpBox();
@@ -3373,7 +3449,7 @@ async function verifyAdminOtp(){
     const newHash=await sha256(np1);
     const r=await authCall({action:'verifyOtp', otp, newHash});
     if(r.ok){
-      try{ localStorage.setItem('bnw_admin_session', newHash); }catch(e){}
+      if(r.token) setAdminToken(r.token);
       alert('✅ Password badal gaya aur unlock ho gaya!');
       document.getElementById('otpInput').value=''; document.getElementById('newPass1').value=''; document.getElementById('newPass2').value='';
       openAdminPanel();
@@ -3395,6 +3471,10 @@ function openAdminPanel(){
     document.getElementById('wcCoupon').value = CONFIG.welcomeCoupon;
   }catch(e){}
   renderRidersDuty();
+  authCall({action:'getJson', key:'boys'}).then(r=>{
+    if(r && r.ok && Array.isArray(r.value)){ DELIVERY_BOYS = r.value; try{ renderDeliveryBoyAdmin(); }catch(e){} }
+  }).catch(()=>{});
+  loadOrdersFromSheet();   // admin: poori list turant
   epPopulate();          // Edit Product dropdown yahin bhar jaayega (Sheet ka wait nahi)
   renderQuickStock();    // Stock fast-list bhi
   refreshAdminOrders();
@@ -3410,10 +3490,10 @@ function openAdminPanel(){
 }
 async function restoreAdminSession(){
   if(!SHEET_URL) return;
-  let hash=null; try{ hash=localStorage.getItem('bnw_admin_session'); }catch(e){}
-  if(!hash) return;
-  try{ const r=await authCall({action:'login', hash}); if(r.ok) openAdminPanel();
-    else { try{ localStorage.removeItem('bnw_admin_session'); }catch(e){} } }catch(e){}
+  try{ localStorage.removeItem('bnw_admin_session'); }catch(e){}   // purana (password-hash) tareeka band
+  if(!adminToken()) return;
+  try{ const r=await jsonpGet({action:'checkSession', token: adminToken()}); if(r && r.ok) openAdminPanel();
+    else if(r && r.error==='unauthorized') setAdminToken(''); }catch(e){}
 }
 async function changeAdminPassword(){
   const cur=document.getElementById('cpOld').value, np1=document.getElementById('cpNew1').value, np2=document.getElementById('cpNew2').value;
@@ -3421,14 +3501,16 @@ async function changeAdminPassword(){
   if(np1!==np2){ alert('Dono naye password alag hain.'); return; }
   try{
     const r=await authCall({action:'changePass', hash:await sha256(cur), newHash:await sha256(np1)});
-    if(r.ok){ try{ localStorage.setItem('bnw_admin_session', await sha256(np1)); }catch(e){}
+    if(r.ok){
       document.getElementById('cpOld').value=''; document.getElementById('cpNew1').value=''; document.getElementById('cpNew2').value='';
       alert('✅ Password badal gaya!');
     } else { alert('❌ Purana password galat hai.'); }
   }catch(e){ alert('Net/Sheet problem — dobara try karein.'); }
 }
 function logoutAdmin(){
-  try{ localStorage.removeItem('bnw_admin_session'); }catch(e){}
+  const t = adminToken();
+  if(t){ try{ jsonpGet({action:'logout', token:t}); }catch(e){} }
+  setAdminToken('');
   document.getElementById('adminScreen').style.display = 'none';
   window._adminOpen = false;
   document.getElementById('storeScreen').style.display = 'block';
@@ -3696,7 +3778,8 @@ function shareApp(){
    Delivery boy ko ek chhota link bhej dete hain (WhatsApp par) jisse wo khud
    "Delivered" mark kar sake — bina admin panel ke andar aaye. */
 async function riderKeyFor(orderId){
-  return (await sha256(String(orderId) + CONFIG.adminSecret)).slice(0,12);
+  const o = ORDERS.find(x=>String(x.orderId)===String(orderId));
+  return (o && o.riderKey) || '';   // chabi ab server deta hai (admin orders ke saath)
 }
 async function sendRiderLink(orderId){
   const o = ORDERS.find(x=>String(x.orderId)===String(orderId));
@@ -3917,7 +4000,7 @@ async function askTogglePin(){
   const p = prompt("🔒 4-digit PIN daalein:");
   if(p === null) return false;
   try{
-    const r = await jsonpGet({action:'checkPin', secret: CONFIG.adminSecret, pin: String(p).trim()});
+    const r = await jsonpGet({action:'checkPin', token: adminToken(), pin: String(p).trim()});
     if(r && r.ok) return true;
   }catch(e){ alert("Net problem — dobara try karein."); return false; }
   alert("Galat PIN! ❌");
@@ -3936,7 +4019,7 @@ async function forgotTogglePin(){
   const msg = document.getElementById('pinMsg');
   msg.textContent = '⏳ OTP bheja ja raha hai aapke email par…'; msg.style.color = '#8a7a63';
   try{
-    const r = await jsonpGet({action:'sendPinOtp', secret: CONFIG.adminSecret});
+    const r = await jsonpGet({action:'sendPinOtp', token: adminToken()});
     if(!r || !r.ok){ msg.textContent = '❌ OTP nahi bhej paaye — net check karke dobara try karein.'; msg.style.color = '#c0392b'; return; }
   }catch(e){ msg.textContent = '❌ Net problem — dobara try karein.'; msg.style.color = '#c0392b'; return; }
   msg.textContent = '📧 OTP bhej diya! Email (inbox/spam) check karein.'; msg.style.color = '#3d8b40';
@@ -3947,7 +4030,7 @@ async function forgotTogglePin(){
   if(!/^\d{4}$/.test(String(newP).trim())){ msg.textContent = '❌ Naya PIN 4 digit ka hona chahiye.'; msg.style.color = '#c0392b'; return; }
   msg.textContent = '⏳ Verify ho raha hai…'; msg.style.color = '#8a7a63';
   try{
-    const r2 = await jsonpGet({action:'verifyPinOtp', secret: CONFIG.adminSecret, otp: String(otp).trim(), newPin: String(newP).trim()});
+    const r2 = await jsonpGet({action:'verifyPinOtp', token: adminToken(), otp: String(otp).trim(), newPin: String(newP).trim()});
     if(r2 && r2.ok){
       msg.textContent = '✅ Naya PIN set ho gaya! Ab sab buttons par yahi chalega.'; msg.style.color = '#3d8b40';
       _pinOkUntil = 0;
@@ -3967,7 +4050,7 @@ async function changeTogglePin(){
   if(!/^\d{4}$/.test(newP)){ msg.textContent='❌ Naya PIN 4 digit ka hona chahiye.'; msg.style.color='#c0392b'; return; }
   msg.textContent='⏳ Save ho raha hai…'; msg.style.color='#8a7a63';
   try{
-    const r = await jsonpGet({action:'setPin', secret: CONFIG.adminSecret, oldPin: oldP, newPin: newP});
+    const r = await jsonpGet({action:'setPin', token: adminToken(), oldPin: oldP, newPin: newP});
     if(r && r.ok){
       msg.textContent='✅ PIN badal gaya! Ab naya PIN sab devices par chalega.'; msg.style.color='#3d8b40';
       _pinOkUntil = 0;
@@ -3995,9 +4078,9 @@ function maybeShowWelcome(){
       d.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;';
       d.innerHTML = `<div style="background:#fff;border-radius:18px;padding:24px;max-width:320px;text-align:center;box-shadow:0 10px 40px rgba(0,0,0,.3);">
         <div style="font-size:40px;">🎉</div>
-        <h3 style="margin:8px 0;color:var(--maroon);">${CONFIG.welcomeTitle}</h3>
-        <p style="font-size:14px;color:#6b5b45;margin:6px 0 12px;">${CONFIG.welcomeText}</p>
-        ${CONFIG.welcomeCoupon ? `<div style="background:#fff4ea;border:2px dashed var(--gold);border-radius:10px;padding:10px;font-weight:800;font-size:18px;letter-spacing:1px;color:var(--maroon);">${CONFIG.welcomeCoupon}</div>` : ''}
+        <h3 style="margin:8px 0;color:var(--maroon);">${esc(CONFIG.welcomeTitle)}</h3>
+        <p style="font-size:14px;color:#6b5b45;margin:6px 0 12px;">${esc(CONFIG.welcomeText)}</p>
+        ${CONFIG.welcomeCoupon ? `<div style="background:#fff4ea;border:2px dashed var(--gold);border-radius:10px;padding:10px;font-weight:800;font-size:18px;letter-spacing:1px;color:var(--maroon);">${esc(CONFIG.welcomeCoupon)}</div>` : ''}
         <button onclick="document.getElementById('welcomePop').remove()" style="margin-top:14px;background:var(--maroon);color:#fff;border:none;border-radius:12px;padding:12px 28px;font-weight:700;font-size:15px;">Order Now 🍽️</button>
       </div>`;
       document.body.appendChild(d);
@@ -4014,7 +4097,9 @@ async function saveWelcome(){
   localStorage.setItem('bnw_welcomeTitle', CONFIG.welcomeTitle);
   localStorage.setItem('bnw_welcomeText', CONFIG.welcomeText);
   localStorage.setItem('bnw_welcomeCoupon', CONFIG.welcomeCoupon);
-  alert('✅ Welcome popup settings save! (Test dekhne ko "🔄 Dobara dikhao" dabao)');
+  const okSave = await saveSharedJson('welcome', {on:CONFIG.welcomeOn, title:CONFIG.welcomeTitle, text:CONFIG.welcomeText, coupon:CONFIG.welcomeCoupon});
+  alert(okSave ? '✅ Welcome popup Sheet me save — ab sab customers ko yahi dikhega! (Test: "🔄 Dobara dikhao")'
+               : '⚠️ Sheet me save NAHI hua (net ya Apps Script). Sirf is phone par laga hai.');
 }
 function previewWelcome(){ localStorage.removeItem('bnw_seen'); maybeShowWelcome(); }
 setTimeout(()=>{ try{
