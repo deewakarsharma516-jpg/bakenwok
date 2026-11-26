@@ -1422,9 +1422,9 @@
         <div style="display:flex; gap:8px; margin-bottom:6px;">
           <button class="small-btn" id="btnSoundOn" style="flex:1;padding:10px;background:#ecd9ad;color:var(--maroon);" onclick="setOrderSound(true)">🔔 On</button>
           <button class="small-btn" id="btnSoundOff" style="flex:1;padding:10px;background:var(--nonveg);color:#fff;" onclick="setOrderSound(false)">🔕 Off</button>
-          <button class="small-btn" style="flex:1;padding:10px;background:var(--teal);color:#fff;" onclick="playBeep()">▶ Test</button>
+          <button class="small-btn" style="flex:1;padding:10px;background:var(--teal);color:#fff;" onclick="playRing()">▶ Test</button>
         </div>
-        <p style="font-size:11px;color:#8a7a63;margin-bottom:10px;">Jab "On" ho aur admin panel khula ho, naya order aane par beep bajega. (Sound ke liye ek baar Test dabana zaroori hai — browser rule.)</p>
+        <p style="font-size:11px;color:#8a7a63;margin-bottom:10px;">Jab "On" ho aur admin panel khula ho (tab chhota karke bhi chalega), naya order aate hi ghanti bajti rahegi jab tak upar laal patti par tap na karein, aur Zara order bol kar batayegi. Page kholne ke baad screen par ek baar kahin bhi tap/click zaroor karein — browser ka rule hai, uske bina awaaz nahi bajti. Phone ki screen band hone par browser awaaz rok deta hai.</p>
       </div>
       <div class="admin-card">
         <label>Coupon Codes 🎟️</label>
@@ -2394,7 +2394,7 @@ async function loadOrdersFromSheet(){
     }
   }catch(e){ /* net issue — agle poll me try hoga */ }
 }
-setInterval(()=>{ if(!document.hidden && adminToken()) loadOrdersFromSheet(); }, 30000); // sirf admin: har 30 sec naye orders
+setInterval(()=>{ if(adminToken() && window._adminOpen === true) loadOrdersFromSheet(); }, 15000); // admin panel khula ho to har 15 sec (tab chhota ho tab bhi)
 
 /* Customer: sirf APNE orders (phone se) — kisi aur ka naam/address kabhi nahi aata */
 async function loadMyOrders(){
@@ -4214,7 +4214,7 @@ setTimeout(()=>{ try{
   if(CONFIG.fssai){ document.getElementById('fssaiNo').textContent = CONFIG.fssai; document.getElementById('fssaiLine').style.display=''; }
 }catch(e){} }, 400);
 let orderSoundOn = false;
-try{ orderSoundOn = localStorage.getItem('bnw_sound') === '1'; }catch(e){}
+try{ const v = localStorage.getItem('bnw_sound'); orderSoundOn = (v === null) ? true : v === '1'; }catch(e){ orderSoundOn = true; }
 // Is device par pichhli baar set kiye toggles wapas lagao (server na ho tab bhi)
 try{
   const _ls = k => localStorage.getItem('bnw_set_' + k);
@@ -4346,19 +4346,61 @@ function announceOrder(o){
   if(o.mode) msg += ' ' + (String(o.mode).toLowerCase().indexOf('pick')!==-1 ? 'पिकअप' : 'डिलीवरी');
   zaraSpeak(msg, true);  // true = naam waisa hi bolo, Hinglish-convert mat karo
 }
-// Beep + Zara ki awaaz jab naya order aaye (admin panel khula ho)
-function checkNewOrders(){
-  // Sirf jab admin panel KHULA ho tabhi beep + Zara boले (warna customer ke phone par bhi bolne lagti thi)
-  const adminHere = window._adminOpen === true;
-  if(adminHere && orderSoundOn && lastOrderCount > 0 && ORDERS.length > lastOrderCount){
-    playBeep();
-    const fresh = Math.min(ORDERS.length - lastOrderCount, 3);
-    for(let i = fresh - 1; i >= 0; i--){
-      const o = ORDERS[i];
-      setTimeout(()=>announceOrder(o), 600 + (fresh - 1 - i) * 4000);
-    }
+// Naya order: zor se ghanti, jab tak admin "Dekh liya" na dabaye (max 3 min) + Zara bolti hai
+let _seenOrderIds = null, _ringTimer = null, _ringStop = 0, _titleTimer = null, _origTitle = document.title;
+function playRing(){
+  try{
+    _audioCtx = _audioCtx || new (window.AudioContext||window.webkitAudioContext)();
+    const ctx = _audioCtx; if(ctx.state === 'suspended') ctx.resume();
+    [0,0.25,0.5, 1.0,1.25,1.5].forEach((t,k)=>{
+      const o = ctx.createOscillator(), g = ctx.createGain();
+      o.type = 'square'; o.frequency.value = (k%2) ? 1175 : 880;
+      o.connect(g); g.connect(ctx.destination);
+      const st = ctx.currentTime + t;
+      g.gain.setValueAtTime(0.001, st);
+      g.gain.exponentialRampToValueAtTime(0.5, st+0.02);
+      g.gain.exponentialRampToValueAtTime(0.001, st+0.22);
+      o.start(st); o.stop(st+0.23);
+    });
+  }catch(e){}
+  try{ navigator.vibrate && navigator.vibrate([400,150,400]); }catch(e){}
+}
+function startRinging(fresh){
+  _ringStop = Date.now() + 3*60*1000;
+  let bar = document.getElementById('newOrderBar');
+  if(!bar){
+    bar = document.createElement('div'); bar.id = 'newOrderBar'; bar.className = 'notranslate';
+    bar.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:100000;background:#d62828;color:#fff;padding:14px 16px;font:700 16px/1.4 system-ui,sans-serif;text-align:center;cursor:pointer;box-shadow:0 4px 16px rgba(0,0,0,.35)';
+    bar.onclick = stopRinging;
+    document.body.appendChild(bar);
   }
+  const ids = fresh.map(o=>'#'+o.orderId + (o.total ? ' (₹'+o.total+')' : '')).join(', ');
+  bar.textContent = '🔔 Naya order aaya: ' + ids + ' — band karne ke liye yahan dabayein';
+  if(!_ringTimer){
+    playRing();
+    _ringTimer = setInterval(()=>{ if(Date.now() > _ringStop) return stopRinging(); playRing(); }, 4000);
+  }
+  if(!_titleTimer){
+    let f = false;
+    _titleTimer = setInterval(()=>{ f = !f; document.title = f ? '🔔 NAYA ORDER!' : _origTitle; }, 1000);
+  }
+}
+function stopRinging(){
+  if(_ringTimer){ clearInterval(_ringTimer); _ringTimer = null; }
+  if(_titleTimer){ clearInterval(_titleTimer); _titleTimer = null; document.title = _origTitle; }
+  const bar = document.getElementById('newOrderBar'); if(bar) bar.remove();
+}
+function checkNewOrders(){
+  const ids = ORDERS.map(o=>String(o.orderId));
+  // Pehli baar Sheet se list aane tak sirf yaad rakho, ghanti nahi
+  if(!ordersLoadedOnce || !window._ordersSeeded){ _seenOrderIds = new Set(ids); lastOrderCount = ORDERS.length; if(ordersLoadedOnce) window._ordersSeeded = true; return; }
+  const fresh = ORDERS.filter(o => !_seenOrderIds.has(String(o.orderId)) && !/Cancel/i.test(o.status||''));
+  ids.forEach(id=>_seenOrderIds.add(id));
   lastOrderCount = ORDERS.length;
+  // Sirf jab admin panel KHULA ho (customer ke phone par kabhi nahi)
+  if(window._adminOpen !== true || !orderSoundOn || !fresh.length) return;
+  startRinging(fresh);
+  fresh.slice(0,3).forEach((o,k)=> setTimeout(()=>announceOrder(o), 2200 + k*4500));
 }
 // Page load par saved sound setting button par bhi dikhao (bina beep/awaaz ke)
 setTimeout(()=>{ try{ setOrderSound(orderSoundOn, true); }catch(e){} }, 300);
