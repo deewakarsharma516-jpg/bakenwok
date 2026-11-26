@@ -1578,7 +1578,20 @@ async function loadProductsFromSheet(){
 // Fire-and-forget write to the sheet (new product or new order).
 /* CORS-safe GET — Apps Script se data laane ke liye JSONP use karte hain
    (custom domain par normal fetch GET ko CORS block kar deta hai) */
-function jsonpGet(params){
+/* Pehle cookie-free fetch (multi Google account wale browsers me bhi chalta hai),
+   fail ho to purana JSONP fallback */
+async function jsonpGet(params){
+  try{
+    const q = new URLSearchParams(params || {}).toString();
+    const ctrl = new AbortController();
+    const t = setTimeout(()=>ctrl.abort(), 15000);
+    const res = await fetch(SHEET_URL + (q ? '?' + q : ''), {credentials:'omit', redirect:'follow', signal:ctrl.signal});
+    clearTimeout(t);
+    if(res.ok) return await res.json();
+  }catch(e){}
+  return jsonpGetLegacy(params);
+}
+function jsonpGetLegacy(params){
   return new Promise((resolve, reject)=>{
     const cb = 'bnwcb_' + Math.random().toString(36).slice(2);
     const q = new URLSearchParams(Object.assign({callback: cb}, params)).toString();
@@ -1604,6 +1617,7 @@ function sheetPost(payload){
     fetch(SHEET_URL, {
       method:'POST',
       mode:'no-cors',
+      credentials:'omit',
       headers:{'Content-Type':'text/plain;charset=utf-8'},
       body: JSON.stringify(body)
     });
